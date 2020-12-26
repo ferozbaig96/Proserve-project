@@ -1,0 +1,21 @@
+{
+ "Version": "2012-10-17",
+ "Id": "example-ID",
+ "Statement": [
+  {
+   "Sid": "example-statement-ID",
+   "Effect": "Allow",
+   "Principal": {
+    "AWS":"*"  
+   },
+   "Action": [
+    "SQS:SendMessage"
+   ],
+   "Resource": "arn:aws:sqs:us-east-1:784439035548:serve-sqs",
+   "Condition": {
+      "ArnLike": { "aws:SourceArn": "arn:aws:s3:*:*:vies" },
+      "StringEquals": { "aws:SourceAccount": "784439035548" }
+   }
+  }
+ ]
+}
