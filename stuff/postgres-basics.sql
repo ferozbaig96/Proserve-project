@@ -20,7 +20,7 @@ DROP TABLE videos;
 -- insert data into table
 -- NOTE: single quotes to be used for string literals
 INSERT INTO videos (id, object_key, object_size_bytes, created_on)
-    VALUES ('123', 'abc', 1024, '2020-12-25T17:36:49.945ZZ');
+    VALUES ('123', 'abc', 1024, '2020-12-25T17:36:49.945Z');
 
 INSERT INTO videos (id, object_key, object_size_bytes, created_on)
     VALUES ('456', 'def', 2048, 'DEF');
