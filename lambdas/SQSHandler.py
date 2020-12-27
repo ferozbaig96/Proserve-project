@@ -70,16 +70,16 @@ def lambda_handler(event, context):
     
     for record in event['Records']:
         s3record = json.loads(record['body'])['Records'][0]
-
+        
         eventName = s3record['eventName']
         print(eventName)
-
+        
         if eventName.startswith('ObjectCreated'):
             eventTime = s3record['eventTime']
             objectKey = s3record['s3']['object']['key']
             objectSize = s3record['s3']['object']['size']
             objectKeyHash = hashlib.sha256(bytes(f'{objectKey}', encoding='utf-8')).hexdigest()
-
+            
             result = create_table()
             print(result)
             if result['ResponseMetadata']['HTTPStatusCode'] == 200:
@@ -88,7 +88,7 @@ def lambda_handler(event, context):
             objectKey = s3record['s3']['object']['key']
             objectKeyHash = hashlib.sha256(bytes(f'{objectKey}', encoding='utf-8')).hexdigest()
             print(delete_data(objectKeyHash))
-
+    
     return {
         'statusCode': 204,
     }
