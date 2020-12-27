@@ -3,12 +3,14 @@ import boto3
 import time
 import hashlib
 
-database_name = 'video_db'
-table_name = 'videos'
-db_cluster_arn = 'arn:aws:rds:us-east-1:784439035548:cluster:serve-db-cluster'
-db_credentials_secrets_store_arn = 'arn:aws:secretsmanager:us-east-1:784439035548:secret:serve-project/database-o1hKSq'
-
 rds_client = boto3.client('rds-data')
+
+def fetch_ssm_parameter(parameter, isEncrypted):
+    ssmClient = boto3.client('ssm')
+    response = ssmClient.get_parameter(
+            Name = parameter,
+            WithDecryption = isEncrypted)
+    return response['Parameter']['Value']
 
 # Timing function executions
 def timeit(f):
@@ -68,6 +70,12 @@ def delete_data(objectKeyHash):
 
 def lambda_handler(event, context):
     
+    global database_name, table_name, db_cluster_arn, db_credentials_secrets_store_arn
+    database_name = fetch_ssm_parameter('ProserveProject_database_name', True)
+    table_name = fetch_ssm_parameter('ProserveProject_table_name', True)
+    db_cluster_arn = fetch_ssm_parameter('ProserveProject_db_cluster_arn', True)
+    db_credentials_secrets_store_arn = fetch_ssm_parameter('ProserveProject_db_credentials_secrets_store_arn', True)
+
     for record in event['Records']:
         s3record = json.loads(record['body'])['Records'][0]
         

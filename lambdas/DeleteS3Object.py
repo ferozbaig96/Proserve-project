@@ -6,7 +6,7 @@ def get_bucket_name():
     ssmClient = boto3.client('ssm')
     response = ssmClient.get_parameter(
             Name = 'ProserveProject_S3BucketName',
-            WithDecryption = False)
+            WithDecryption = True)
     return response['Parameter']['Value']
 
 def lambda_handler(event, context):

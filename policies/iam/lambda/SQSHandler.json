@@ -7,6 +7,8 @@
                 "logs:CreateLogGroup",
                 "logs:CreateLogStream",
                 "logs:PutLogEvents",
+                "ssm:Get*",
+                "ssm:List*",
                 "kms:Decrypt",
                 "sqs:ReceiveMessage",
                 "sqs:DeleteMessage",
