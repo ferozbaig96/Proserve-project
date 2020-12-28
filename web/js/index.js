@@ -20,6 +20,14 @@ $(document).ready(function () {
 
 });
 
+function progress(evt){
+    if (evt.lengthComputable) {
+        var percentComplete = 100 * evt.loaded / evt.total;
+        //Do something with download progress
+        console.log(percentComplete);
+    }
+}
+
 function upload(event, file) {
     
     function getUploadUrl(file, callback){
@@ -35,12 +43,10 @@ function upload(event, file) {
     }
 
     function sendData(uploadUrl){
-        var formData = new FormData();
-        formData.append("file", file);
         $.ajax({
             method : "PUT",
             url : uploadUrl,
-            data : formData,
+            data : file,
             processData: false,  // tells jQuery not to process the data
             headers: {
                 "Content-Type": file.type
@@ -52,6 +58,11 @@ function upload(event, file) {
             error: function (e) {
                 console.log(e);
                 alert("Some error occurred")
+            },
+            xhr: function(){
+                var xhr = new window.XMLHttpRequest();
+                xhr.upload.addEventListener("progress", progress, false);
+                return xhr;
             }
         })
     }
