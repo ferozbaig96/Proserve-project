@@ -91,9 +91,9 @@ ON videos FOR EACH ROW EXECUTE PROCEDURE documents_search_trigger();
 INSERT INTO videos
 VALUES
 	('1', 'Big Brown Fox', 1024, '2020-12-25T17:36:49.945Z'),
-	('2', 'Brownies baked right but fox ate them all', 2048, '2020-12-25T17:36:49.945Z'),
-	('3', 'Right way to cut a baked cake while running', 512, '2020-12-25T17:36:49.945Z'),
-	('4', 'Running into a gate', 256, '2020-12-25T17:36:49.945Z')
+	('2', 'Brownies baked right but fox ate them all', 2048, '2020-12-26T17:36:49.945Z'),
+	('3', 'Right way to cut a baked cake while running', 512, '2020-12-22T17:36:49.945Z'),
+	('4', 'Running into a gate', 256, '2020-12-30T17:36:49.945Z')
 ;
 
 -- Now you can search the database. Replace both occurences of YOUR QUERY text with what you want to search and run the following query:
