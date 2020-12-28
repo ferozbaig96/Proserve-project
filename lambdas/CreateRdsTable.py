@@ -38,21 +38,36 @@ def execute_statement(sql, sql_parameters=[]):
     )
     return response
 
-def upsert_data(objectKeyHash, objectKey, objectSize, eventTime):
+def create_table():
     sql = f"""
-        INSERT INTO {table_name} (id, object_key, object_size_bytes, created_on)
-        VALUES ('{objectKeyHash}', '{objectKey}', {objectSize}, '{eventTime}')
-        ON CONFLICT (id)
-        DO UPDATE SET object_size_bytes = EXCLUDED.object_size_bytes, created_on = EXCLUDED.created_on ;
+        CREATE TABLE IF NOT EXISTS {table_name} (
+        id                  VARCHAR(256)     PRIMARY KEY,
+        object_key          TEXT            NOT NULL,
+        object_size_bytes   NUMERIC         NOT NULL,
+        created_on          CHAR(24)        NOT NULL
+        ) ;
         """
     response = execute_statement(sql)
     return response
 
-def delete_data(objectKeyHash):
+def add_FTS_to_table():
     sql = f"""
-        DELETE FROM {table_name}
-        WHERE id = '{objectKeyHash}' ;
+        ALTER TABLE {table_name} ADD COLUMN tsv tsvector;
+
+        CREATE INDEX tsv_idx ON {table_name} USING gin(tsv);
+
+        CREATE FUNCTION documents_search_trigger() RETURNS trigger AS $$
+        begin
+          new.tsv :=
+            setweight(to_tsvector(coalesce(new.object_key,'')), 'A');
+          return new;
+        end
+        $$ LANGUAGE plpgsql;
+
+        CREATE TRIGGER tsvectorupdate BEFORE INSERT OR UPDATE
+        ON {table_name} FOR EACH ROW EXECUTE PROCEDURE documents_search_trigger();        
         """
+        
     response = execute_statement(sql)
     return response
 
@@ -63,24 +78,9 @@ def lambda_handler(event, context):
     table_name = fetch_ssm_parameter('ProserveProject_table_name', True)
     db_cluster_arn = fetch_ssm_parameter('ProserveProject_db_cluster_arn', True)
     db_credentials_secrets_store_arn = fetch_ssm_parameter('ProserveProject_db_credentials_secrets_store_arn', True)
-
-    for record in event['Records']:
-        s3record = json.loads(record['body'])['Records'][0]
-        
-        eventName = s3record['eventName']
-        print(eventName)
-        
-        if eventName.startswith('ObjectCreated'):
-            eventTime = s3record['eventTime']
-            objectKey = s3record['s3']['object']['key']
-            objectSize = s3record['s3']['object']['size']
-            objectKeyHash = hashlib.sha256(bytes(f'{objectKey}', encoding='utf-8')).hexdigest()
-            
-            upsert_data(objectKeyHash, objectKey, objectSize, eventTime)
-        else:
-            objectKey = s3record['s3']['object']['key']
-            objectKeyHash = hashlib.sha256(bytes(f'{objectKey}', encoding='utf-8')).hexdigest()
-            delete_data(objectKeyHash)
+    
+    create_table()
+    add_FTS_to_table()
     
     return {
         'statusCode': 204,
