@@ -64,8 +64,14 @@ def lambda_handler(event, context):
     result = search_data(query, LIMIT)
 
     response = []
+    bucketName = fetch_ssm_parameter('ProserveProject_S3BucketName', True)
     for record in result['records']:
-        response.append(record[0]['stringValue'])
+        objectKey = record[0]['stringValue']
+        objectUrl = f'https://{bucketName}.s3.amazonaws.com/{objectKey}'
+        response.append({
+            'name':objectKey,
+            'url':objectUrl
+            })
 
     return {
         'statusCode': 200,
