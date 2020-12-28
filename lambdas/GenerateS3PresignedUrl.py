@@ -31,6 +31,7 @@ def lambda_handler(event, context):
         Params = {
             'Bucket': bucketName,
             'Key': objectKey,
+            'ACL': 'public-read',
             'ContentType': contentType
         },
         ExpiresIn = URL_EXPIRATION_SECONDS)
