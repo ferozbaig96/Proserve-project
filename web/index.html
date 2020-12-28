@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<!-- To stop character encoding error -->
+	<meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+	<title>Welcome!</title>
+	<!-- To stop favicon requests -->
+	<link rel="icon" href="data:,">
+</head>
+
+<body>
+<script src="js/jquery.min.js"></script>
+
+<p>Click on the "Choose File" button to upload a video file:</p>
+
+<form id="fileUploaderForm" method="POST">
+	<!-- todo replace image with video -->
+    <input id = "test" type="file" name="filename" accept="image/*">
+    <input type="submit" value="Upload">
+</form>
+
+<script src="js/config.js"></script>
+<script src="js/request.js"></script>
+<script src="js/index.js"></script>
+
+</body>
+</html>
