@@ -150,7 +150,7 @@ function deleteFile(filename){
         url : _config.api.invokeUrl + '/delete-file',
         processData: false,  // tells jQuery not to process the data
         headers: {
-            "Content-Type": _config.api.contentType.appjson
+            "Content-Type": "application/json"
         },
         data: JSON.stringify({
             // todo replace with file.name
