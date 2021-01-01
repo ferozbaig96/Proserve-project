@@ -14,29 +14,35 @@
 	<div class="loader"></div>
 	<p id="loader-info"></p>
 
-	<p>Upload</p>
+	<div class="upload" style="display: none;">
+		<p>Upload</p>
 
-	<form id="fileUploaderForm" method="POST">
-		<!-- todo replace image with video -->
-	    <input type="file" accept="image/*">
-	    <input type="submit" value="Upload">
-	</form>
+		<form id="fileUploaderForm" method="POST">
+			<!-- todo replace image with video -->
+		    <input type="file" accept="image/*">
+		    <input type="submit" value="Upload">
+		</form>
+	</div>
 
-	<p>Search</p>
+	<div class="search">
+		<p>Search</p>
 
-	<form id="fileSearchForm" method="POST">
-	    <input type="search">
-	    <input type="submit" value="Search">
-	</form>
+		<form id="fileSearchForm" method="POST">
+		    <input type="search">
+		    <input type="submit" value="Search">
+		</form>
 
-	<table id="searchResultsTable"></table>
+		<table id="searchResultsTable"></table>
+	</div>
 
-	<p>Delete</p>
+	<div class="delete" style="display: none;">
+		<p>Delete</p>
 
-	<form id="fileDeleteForm" method="POST">
-	    <input type="search">
-	    <input type="submit" value="Delete">
-	</form>
+		<form id="fileDeleteForm" method="POST">
+		    <input type="search">
+		    <input type="submit" value="Delete">
+		</form>
+	</div>
 
 	<script src="js/jquery.min.js"></script>
 	<script src="js/config.js"></script>

@@ -19,6 +19,7 @@ if ( code == null ) {
             success: function (event) {
             	console.log(event)
             	if (event.error != null) {
+                    // todo uncomment
             		// window.location.href = LOGIN_URI
             	} else {
             		access_token = event.access_token
@@ -32,6 +33,11 @@ if ( code == null ) {
             			group = null
             		else
             			group = decodedAccessToken['cognito:groups'][0]
+
+                    if (group == "admin") {
+                        $( ".upload" ).show()
+                        $( ".delete" ).show()
+                    }
             	}
             }
         });
