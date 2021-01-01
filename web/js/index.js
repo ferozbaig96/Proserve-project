@@ -25,6 +25,13 @@ $(document).ready(function () {
         searchFiles(q)
         event.target.reset();
     });
+
+    $( "#fileDeleteForm" ).submit(function (event) {
+        event.preventDefault();
+        filename = event.target[0].value
+        deleteFile(filename)
+        event.target.reset();
+    });
 });
 
 function searchFiles(q) {
@@ -197,7 +204,6 @@ function parseFile(event, file, callback) {
     chunkReaderBlock(offset, chunkSize, file);
 }
 
-// todo add arguments: event, file
 function deleteFile(filename){
     $.ajax({
         method: "DELETE",
@@ -207,15 +213,19 @@ function deleteFile(filename){
             "Content-Type": "application/json"
         },
         data: JSON.stringify({
-            // todo replace with file.name
             "objectKey": filename
         }),
+        beforeSend: function() {
+              $(".loader").show();
+            },
         success: function (event){
             console.log("File deleted successfully")
+            $(".loader").hide();
             alert("File deleted successfully")
         },
         error: function (e) {
             console.log(e);
+            $(".loader").hide();
             alert("Some error occurred")
         }
     });
