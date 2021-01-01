@@ -1,4 +1,5 @@
-$(document).ready(function () {
+var abc=null
+$(document).ready(function () {    
 
     $( "#fileUploaderForm" ).submit(function( event ) {
         event.preventDefault();
@@ -18,13 +19,50 @@ $(document).ready(function () {
         }
     });
 
+    $( "#fileSearchForm" ).submit(function (event) {
+        event.preventDefault();
+        q = event.target[0].value
+        searchFiles(q)
+        event.target.reset();
+    });
 });
+
+function searchFiles(q) {
+    var queryParamsMap = new Map([
+                    ["query" ,q]
+            ])
+    $.ajax({
+            method: "GET",
+            url : _config.api.invokeUrl + '/files' + processQueryParamsMap(queryParamsMap),
+            beforeSend: function() {
+              $(".loader").show();
+              $("#searchResultsTable tr").remove(); 
+            },
+            success: function (results) {
+                var table = document.getElementById("searchResultsTable")
+                for (i in results){
+                    row = table.insertRow(0);
+                    cell = row.insertCell(0);
+                    name = results[i].name
+                    name = name.replaceAll('+',' ')
+                    url = results[i].url
+                    cell.innerHTML = '<a href='+url+'  target="_blank">'+name+'</a>'
+                }
+                $(".loader").hide();
+            },
+            error: function (e) {
+                $(".loader").hide();
+                console.log(e);
+            }
+        });
+}
 
 function progress(evt){
     if (evt.lengthComputable) {
         var percentComplete = 100 * evt.loaded / evt.total;
-        //Do something with download progress
         console.log(percentComplete);
+        percentComplete = percentComplete.toFixed(2)
+        document.getElementById("loader-info").innerHTML = percentComplete + ' %'
     }
 }
 
@@ -38,7 +76,15 @@ function upload(event, file) {
         $.ajax({
             method: "GET",
             url : _config.api.invokeUrl + '/upload-url' + processQueryParamsMap(queryParamsMap),
-            success: callback
+            beforeSend: function() {
+              $(".loader").show();
+            },
+            success: callback,
+            error: function (e) {
+                console.log(e);
+                alert("Some error occurred");
+                $(".loader").hide();
+            },
         });
     }
 
@@ -51,13 +97,21 @@ function upload(event, file) {
             headers: {
                 "Content-Type": file.type
             },
+            beforeSend: function() {
+              $(".loader").show();
+              $("#loader-info").show();
+            },
             success: function (event){
                 console.log("File uploaded successfully")
                 alert("File uploaded successfully")
+                $(".loader").hide();
+                $("#loader-info").hide();
             },
             error: function (e) {
                 console.log(e);
-                alert("Some error occurred")
+                alert("Some error occurred");
+                $(".loader").hide();
+                $("#loader-info").hide();
             },
             xhr: function(){
                 var xhr = new window.XMLHttpRequest();
@@ -159,20 +213,6 @@ function deleteFile(filename){
         success: function (event){
             console.log("File deleted successfully")
             alert("File deleted successfully")
-        },
-        error: function (e) {
-            console.log(e);
-            alert("Some error occurred")
-        }
-    });
-}
-
-function search(query){
-    $.ajax({
-        method: "GET",
-        url : _config.api.invokeUrl + '/files' + '?query=' + query,
-        success: function (event){
-            console.log(event)
         },
         error: function (e) {
             console.log(e);

@@ -7,23 +7,35 @@
 	<title>Welcome!</title>
 	<!-- To stop favicon requests -->
 	<link rel="icon" href="data:,">
+	<link rel="stylesheet" href="index.css">
 </head>
 
 <body>
+	<div class="loader"></div>
+	<p id="loader-info"></p>
 
-<p>Click on the "Choose File" button to upload a video file:</p>
+	<p>Upload</p>
 
-<form id="fileUploaderForm" method="POST">
-	<!-- todo replace image with video -->
-    <input id = "test" type="file" name="filename" accept="image/*">
-    <input type="submit" value="Upload">
-</form>
+	<form id="fileUploaderForm" method="POST">
+		<!-- todo replace image with video -->
+	    <input type="file" accept="image/*">
+	    <input type="submit" value="Upload">
+	</form>
 
-<script src="js/jquery.min.js"></script>
-<script src="js/config.js"></script>
-<script src="js/request.js"></script>
-<script src="js/auth.js"></script>
-<script src="js/index.js"></script>
+	<p>Search</p>
+
+	<form id="fileSearchForm" method="POST">
+	    <input type="search">
+	    <input type="submit" value="Search">
+	</form>
+
+	<table id="searchResultsTable"></table>
+
+	<script src="js/jquery.min.js"></script>
+	<script src="js/config.js"></script>
+	<script src="js/request.js"></script>
+	<script src="js/auth.js"></script>
+	<script src="js/index.js"></script>
 
 </body>
 </html>
