@@ -41,6 +41,9 @@ function searchFiles(q) {
     $.ajax({
             method: "GET",
             url : _config.api.invokeUrl + '/files' + processQueryParamsMap(queryParamsMap),
+            headers: {
+                "Authorization": id_token
+            },
             beforeSend: function() {
               $(".loader").show();
               $("#searchResultsTable tr").remove(); 
@@ -83,6 +86,9 @@ function upload(event, file) {
         $.ajax({
             method: "GET",
             url : _config.api.invokeUrl + '/upload-url' + processQueryParamsMap(queryParamsMap),
+            headers: {
+                "Authorization": id_token
+            },
             beforeSend: function() {
               $(".loader").show();
             },
@@ -210,7 +216,8 @@ function deleteFile(filename){
         url : _config.api.invokeUrl + '/delete-file',
         processData: false,  // tells jQuery not to process the data
         headers: {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "Authorization": id_token
         },
         data: JSON.stringify({
             "objectKey": filename
