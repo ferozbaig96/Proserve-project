@@ -61,13 +61,14 @@ def lambda_handler(event, context):
     
     query = event['queryStringParameters']['query'].strip()
     LIMIT = 20
+    BASE_URL = 'https://project.baigmohd.myinstance.com'
     result = search_data(query, LIMIT)
 
     response = []
     bucketName = fetch_ssm_parameter('ProserveProject_S3BucketName', True)
     for record in result['records']:
         objectKey = record[0]['stringValue']
-        objectUrl = f'https://{bucketName}.s3.amazonaws.com/{objectKey}'
+        objectUrl = f'{BASE_URL}/{objectKey}'
         response.append({
             'name':objectKey,
             'url':objectUrl
