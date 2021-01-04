@@ -1,4 +1,3 @@
-var abc=null
 $(document).ready(function () {    
 
     $( "#fileUploaderForm" ).submit(function( event ) {
