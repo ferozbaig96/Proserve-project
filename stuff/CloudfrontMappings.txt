@@ -1,0 +1,10 @@
+CloudFront Mappings:
+
+/signup*                -> Cognito 
+/login*                 -> Cognito
+/oauth2/token*          -> Cognito
+*.html                  -> s3-web
+*.js                    -> s3-web
+*.css                   -> s3-web
+/dev/*                  -> API-gateway
+* (default)             -> s3-uploaded-media
