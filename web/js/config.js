@@ -1,6 +1,6 @@
 window._config = {
     api: {
-        invokeUrl: 'https://lk7kafdzwf.execute-api.us-east-1.amazonaws.com/dev'
+        invokeUrl: 'https://project.baigmohd.myinstance.com/dev'
     }
     // cognito: {
     //     userPoolId: 'us-east-1_MOdcUR5pW', // e.g. us-east-2_uXboG5pAb
