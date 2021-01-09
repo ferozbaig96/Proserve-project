@@ -53,19 +53,19 @@ def create_table():
 def add_FTS_to_table():
     sql = f"""
         ALTER TABLE {table_name} ADD COLUMN tsv tsvector;
-
+        
         CREATE INDEX tsv_idx ON {table_name} USING gin(tsv);
-
+        
         CREATE FUNCTION documents_search_trigger() RETURNS trigger AS $$
         begin
           new.tsv :=
-            setweight(to_tsvector(coalesce(new.object_key,'')), 'A');
+            setweight(to_tsvector(regexp_replace(new.object_key, '[^\w]+', ' ', 'gi')), 'A');
           return new;
         end
         $$ LANGUAGE plpgsql;
-
+        
         CREATE TRIGGER tsvectorupdate BEFORE INSERT OR UPDATE
-        ON {table_name} FOR EACH ROW EXECUTE PROCEDURE documents_search_trigger();        
+        ON {table_name} FOR EACH ROW EXECUTE PROCEDURE documents_search_trigger();
         """
         
     response = execute_statement(sql)
