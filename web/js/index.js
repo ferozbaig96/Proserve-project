@@ -11,10 +11,13 @@ $(document).ready(function () {
         else {
             fileSize = files[0].size;
             MB_16 = 16 * 1024 * 1024;
-            if (fileSize <= MB_16)
-                upload(event, files[0]);
-            else
-                multipartUpload(event, files[0]);
+
+            // TODO Multipart
+            // if (fileSize <= MB_16)
+            upload(event, files[0]);
+            // else
+            //     multipartUpload(event, files[0]);
+
         }
     });
 
