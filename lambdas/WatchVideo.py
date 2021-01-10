@@ -1,7 +1,6 @@
 import json
 import boto3
 from botocore.exceptions import ClientError
-from urllib.parse import urlsplit
 
 def get_bucket_name():
     ssmClient = boto3.client('ssm')
@@ -10,10 +9,25 @@ def get_bucket_name():
             WithDecryption = True)
     return response['Parameter']['Value']
 
-def lambda_handler(event, context):
-    
+def presign_s3(action, bucket, key, expiration):
     sess = boto3.session.Session(region_name="us-east-1")
     s3Client = sess.client('s3', config= boto3.session.Config(signature_version='s3v4'))
+    
+    params = {
+        'Bucket': bucket,
+        'Key': key
+    }
+    
+    url = s3Client.generate_presigned_url(action, Params=params, ExpiresIn=expiration)
+    return url
+
+def presign_for_cloudfront(cname, bucket, key, expiration):
+    s3_url = presign_s3('get_object', bucket, key, expiration)
+    cfurl = s3_url.split("?")
+    cfurl = "https://" + cname + "/" + key + "?" + cfurl[1] 
+    return cfurl
+
+def lambda_handler(event, context):
     
     try:
         bucketName = get_bucket_name()
@@ -25,20 +39,10 @@ def lambda_handler(event, context):
         }
     
     URL_EXPIRATION_SECONDS = 150
-    
     objectKey = event['queryStringParameters']['filename'].strip()
+    CNAME = 'project.baigmohd.myinstance.com'
     
-    url = s3Client.generate_presigned_url('get_object',
-        Params = {
-            'Bucket': bucketName,
-            'Key': objectKey,
-            # 'ACL': 'public-read',
-        },
-        ExpiresIn = URL_EXPIRATION_SECONDS)
-    
-    bucket_url = '{uri.scheme}://{uri.netloc}'.format(uri=urlsplit(url))
-    BASE_URL = 'https://project.baigmohd.myinstance.com'
-    url = url.replace(bucket_url, BASE_URL)
+    url = presign_for_cloudfront(CNAME, bucketName, objectKey, URL_EXPIRATION_SECONDS)
     
     return {
         'statusCode': 302,
@@ -47,5 +51,5 @@ def lambda_handler(event, context):
             'Access-Control-Allow-Headers': '*',
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'OPTIONS,GET'
-        },
+        }
     }

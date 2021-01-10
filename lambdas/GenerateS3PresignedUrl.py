@@ -9,11 +9,22 @@ def get_bucket_name():
             WithDecryption = True)
     return response['Parameter']['Value']
 
-def lambda_handler(event, context):
-    
+def presign_s3(action, bucket, key, contentType, expiration):
     sess = boto3.session.Session(region_name="us-east-1")
     s3Client = sess.client('s3', config= boto3.session.Config(signature_version='s3v4'))
     
+    params = {
+        'Bucket': bucket,
+        'Key': key,
+        # 'ACL': 'public-read',
+        'ContentType': contentType
+    }
+    
+    url = s3Client.generate_presigned_url(action, Params=params, ExpiresIn=expiration)
+    return url
+
+def lambda_handler(event, context):
+        
     try:
         bucketName = get_bucket_name()
     except ClientError as e:
@@ -22,20 +33,12 @@ def lambda_handler(event, context):
             'statusCode': 500,
             'body': json.dumps("An error occurred")
         }
-
-    URL_EXPIRATION_SECONDS = 150
     
+    URL_EXPIRATION_SECONDS = 150
     objectKey = event['queryStringParameters']['filename'].strip()
     contentType = event['queryStringParameters']['contentType'].strip()
     
-    response = s3Client.generate_presigned_url('put_object',
-        Params = {
-            'Bucket': bucketName,
-            'Key': objectKey,
-            # 'ACL': 'public-read',
-            'ContentType': contentType
-        },
-        ExpiresIn = URL_EXPIRATION_SECONDS)
+    url = presign_s3('put_object', bucketName, objectKey, contentType, URL_EXPIRATION_SECONDS)
     
     return {
         'statusCode': 200,
@@ -44,5 +47,5 @@ def lambda_handler(event, context):
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'OPTIONS,GET'
         },
-        'body': json.dumps(response)
+        'body': json.dumps(url)
     }
