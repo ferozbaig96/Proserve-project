@@ -23,6 +23,12 @@ def presign_s3(action, bucket, key, contentType, expiration):
     url = s3Client.generate_presigned_url(action, Params=params, ExpiresIn=expiration)
     return url
 
+def presign_for_cloudfront(cname, bucket, key, contentType, expiration):
+    s3_url = presign_s3('put_object', bucket, key, contentType, expiration)
+    cfurl = s3_url.split("?")
+    cfurl = "https://" + cname + "/" + key + "?" + cfurl[1] 
+    return cfurl
+
 def lambda_handler(event, context):
         
     try:
@@ -38,7 +44,9 @@ def lambda_handler(event, context):
     objectKey = event['queryStringParameters']['filename'].strip()
     contentType = event['queryStringParameters']['contentType'].strip()
     
-    url = presign_s3('put_object', bucketName, objectKey, contentType, URL_EXPIRATION_SECONDS)
+    # url = presign_s3('put_object', bucketName, objectKey, contentType, URL_EXPIRATION_SECONDS)
+    CNAME = 'project.baigmohd.myinstance.com'
+    url = presign_for_cloudfront(CNAME, bucketName, objectKey, contentType, URL_EXPIRATION_SECONDS)
     
     return {
         'statusCode': 200,
