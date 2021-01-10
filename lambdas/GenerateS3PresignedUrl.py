@@ -11,7 +11,8 @@ def get_bucket_name():
 
 def lambda_handler(event, context):
     
-    s3Client = boto3.client('s3')
+    sess = boto3.session.Session(region_name="us-east-1")
+    s3Client = sess.client('s3', config= boto3.session.Config(signature_version='s3v4'))
     
     try:
         bucketName = get_bucket_name()

@@ -1,7 +1,7 @@
 import json
 import boto3
 from botocore.exceptions import ClientError
-# from urllib.parse import urlsplit
+from urllib.parse import urlsplit
 
 def get_bucket_name():
     ssmClient = boto3.client('ssm')
@@ -12,7 +12,8 @@ def get_bucket_name():
 
 def lambda_handler(event, context):
     
-    s3Client = boto3.client('s3')
+    sess = boto3.session.Session(region_name="us-east-1")
+    s3Client = sess.client('s3', config= boto3.session.Config(signature_version='s3v4'))
     
     try:
         bucketName = get_bucket_name()
@@ -35,9 +36,9 @@ def lambda_handler(event, context):
         },
         ExpiresIn = URL_EXPIRATION_SECONDS)
     
-    # bucket_url = '{uri.scheme}://{uri.netloc}'.format(uri=urlsplit(url))
-    # BASE_URL = 'https://project.baigmohd.myinstance.com'
-    # url = url.replace(bucket_url, BASE_URL)
+    bucket_url = '{uri.scheme}://{uri.netloc}'.format(uri=urlsplit(url))
+    BASE_URL = 'https://project.baigmohd.myinstance.com'
+    url = url.replace(bucket_url, BASE_URL)
     
     return {
         'statusCode': 302,
