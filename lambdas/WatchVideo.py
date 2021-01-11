@@ -45,11 +45,11 @@ def lambda_handler(event, context):
     url = presign_for_cloudfront(CNAME, bucketName, objectKey, URL_EXPIRATION_SECONDS)
     
     return {
-        'statusCode': 302,
+        'statusCode': 200,
         'headers': {
-            'Location': url,
             'Access-Control-Allow-Headers': '*',
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'OPTIONS,GET'
-        }
+        },
+        'body': json.dumps(url)
     }

@@ -36,6 +36,33 @@ $(document).ready(function () {
     });
 });
 
+function watch(filename) {
+
+    var queryParamsMap = new Map([
+                    ["filename" ,filename]
+            ])
+        $.ajax({
+            method: "GET",
+            url : _config.api.invokeUrl + '/watch' + processQueryParamsMap(queryParamsMap),
+            headers: {
+                "Authorization": id_token
+            },
+            beforeSend: function() {
+              $(".loader").show();
+            },
+            success: function (url) {
+                $(".loader").hide();
+                // window.location.href = url
+                window.open(url, "_blank");
+            },
+            error: function (e) {
+                console.log(e);
+                alert("Some error occurred");
+                $(".loader").hide();
+            },
+        });
+}
+
 function searchFiles(q) {
     var queryParamsMap = new Map([
                     ["query" ,q]
@@ -57,8 +84,12 @@ function searchFiles(q) {
                     cell = row.insertCell(0);
                     name = results[i].name
                     name = name.replaceAll('+',' ')
-                    url = results[i].url
-                    cell.innerHTML = '<a href='+url+'  target="_blank">'+name+'</a>'
+                    cell.innerHTML = name
+                    
+                    cell.onclick =  function () {
+                      console.log(this.innerHTML)
+                      watch(this.innerHTML)
+                    }
                 }
                 $(".loader").hide();
             },
