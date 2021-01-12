@@ -84,6 +84,7 @@ function searchFiles(q) {
                     cell = row.insertCell(0);
                     name = results[i].name
                     name = name.replaceAll('+',' ')
+                    name = decodeURIComponent(name)
                     cell.innerHTML = name
                     
                     cell.onclick =  function () {
