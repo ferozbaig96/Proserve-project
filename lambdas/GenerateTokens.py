@@ -1,15 +1,21 @@
 import json
 import urllib3
+import os
 
 def lambda_handler(event, context):
     
     code = event['queryStringParameters']['code']
     
     # CloudFront
-    BASE_URL = 'https://project.baigmohd.myinstance.com'
+    # BASE_URL = 'https://project.baigmohd.myinstance.com'
+    BASE_URL = os.environ['BASE_URL']
+    
     TOKEN_ENDPOINT = BASE_URL + '/oauth2/token'
     # TOKEN_ENDPOINT = 'https://serve.auth.us-east-1.amazoncognito.com/oauth2/token'
-    CLIENT_ID = 'r6idl4n64lotv1ijlvpv5sb0f'
+    
+    # CLIENT_ID = 'r6idl4n64lotv1ijlvpv5sb0f'
+    CLIENT_ID = os.environ['CLIENT_ID']
+    
     # CloudFront
     REDIRECT_URI = BASE_URL
     # REDIRECT_URI = 'https://lk7kafdzwf.execute-api.us-east-1.amazonaws.com/dev/token'

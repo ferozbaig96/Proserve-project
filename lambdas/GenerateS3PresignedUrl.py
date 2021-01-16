@@ -1,13 +1,14 @@
 import json
 import boto3
 from botocore.exceptions import ClientError
+import os
 
-def get_bucket_name():
-    ssmClient = boto3.client('ssm')
-    response = ssmClient.get_parameter(
-            Name = 'ProserveProject_S3BucketName',
-            WithDecryption = True)
-    return response['Parameter']['Value']
+# def get_bucket_name():
+#     ssmClient = boto3.client('ssm')
+#     response = ssmClient.get_parameter(
+#             Name = 'ProserveProject_S3BucketName',
+#             WithDecryption = True)
+#     return response['Parameter']['Value']
 
 def presign_s3(action, bucket, key, contentType, expiration):
     sess = boto3.session.Session(region_name="us-east-1")
@@ -31,21 +32,23 @@ def presign_for_cloudfront(cname, bucket, key, contentType, expiration):
 
 def lambda_handler(event, context):
         
-    try:
-        bucketName = get_bucket_name()
-    except ClientError as e:
-        print(e)
-        return {
-            'statusCode': 500,
-            'body': json.dumps("An error occurred")
-        }
+    # try:
+    #     bucketName = get_bucket_name()
+    # except ClientError as e:
+    #     print(e)
+    #     return {
+    #         'statusCode': 500,
+    #         'body': json.dumps("An error occurred")
+    #     }
+    bucketName = os.environ['BUCKET_NAME']
     
     URL_EXPIRATION_SECONDS = 150
     objectKey = event['queryStringParameters']['filename'].strip()
     contentType = event['queryStringParameters']['contentType'].strip()
     
     # url = presign_s3('put_object', bucketName, objectKey, contentType, URL_EXPIRATION_SECONDS)
-    CNAME = 'project.baigmohd.myinstance.com'
+    # CNAME = 'project.baigmohd.myinstance.com'
+    CNAME = os.environ['CNAME']
     url = presign_for_cloudfront(CNAME, bucketName, objectKey, contentType, URL_EXPIRATION_SECONDS)
     
     return {

@@ -1,13 +1,14 @@
 import json
 import boto3
 import time
+import os
 
-def fetch_ssm_parameter(parameter, isEncrypted):
-    ssmClient = boto3.client('ssm')
-    response = ssmClient.get_parameter(
-            Name = parameter,
-            WithDecryption = isEncrypted)
-    return response['Parameter']['Value']
+# def fetch_ssm_parameter(parameter, isEncrypted):
+#     ssmClient = boto3.client('ssm')
+#     response = ssmClient.get_parameter(
+#             Name = parameter,
+#             WithDecryption = isEncrypted)
+#     return response['Parameter']['Value']
 
 # Timing function executions
 def timeit(f):
@@ -54,17 +55,23 @@ def lambda_handler(event, context):
     
     global rds_client, database_name, table_name, db_cluster_arn, db_credentials_secrets_store_arn
     rds_client = boto3.client('rds-data')
-    database_name = fetch_ssm_parameter('ProserveProject_database_name', True)
-    table_name = fetch_ssm_parameter('ProserveProject_table_name', True)
-    db_cluster_arn = fetch_ssm_parameter('ProserveProject_db_cluster_arn', True)
-    db_credentials_secrets_store_arn = fetch_ssm_parameter('ProserveProject_db_credentials_secrets_store_arn', True)
+    # database_name = fetch_ssm_parameter('ProserveProject_database_name', True)
+    # table_name = fetch_ssm_parameter('ProserveProject_table_name', True)
+    # db_cluster_arn = fetch_ssm_parameter('ProserveProject_db_cluster_arn', True)
+    # db_credentials_secrets_store_arn = fetch_ssm_parameter('ProserveProject_db_credentials_secrets_store_arn', True)
+    database_name = os.environ['DB_NAME']
+    table_name = os.environ['DB_TABLE_NAME']
+    db_cluster_arn = os.environ['DB_CLUSTER_ARN']
+    db_credentials_secrets_store_arn = os.environ['DB_CREDENTIALS_STORE_ARN']
     
     query = event['queryStringParameters']['query'].strip()
     LIMIT = 20
     result = search_data(query, LIMIT)
     
     response = []
-    bucketName = fetch_ssm_parameter('ProserveProject_S3BucketName', True)
+    # bucketName = fetch_ssm_parameter('ProserveProject_S3BucketName', True)
+    bucketName = os.environ['BUCKET_NAME']
+    
     for record in result['records']:
         objectKey = record[0]['stringValue']
         response.append({
