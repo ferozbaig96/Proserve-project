@@ -3,6 +3,7 @@ import boto3
 import time
 import hashlib
 import os
+import cfnresponse
 
 rds_client = boto3.client('rds-data')
 
@@ -73,6 +74,11 @@ def add_FTS_to_table():
     return response
 
 def lambda_handler(event, context):
+
+    if event['RequestType'] != 'Create':
+        return {
+            'statusCode': 204,
+        }
     
     global database_name, table_name, db_cluster_arn, db_credentials_secrets_store_arn
     # database_name = fetch_ssm_parameter('ProserveProject_database_name', True)
@@ -86,6 +92,9 @@ def lambda_handler(event, context):
     
     create_table()
     add_FTS_to_table()
+    
+    responseData = {}
+    cfnresponse.send(event, context, SUCCESS, responseData)
     
     return {
         'statusCode': 204,
