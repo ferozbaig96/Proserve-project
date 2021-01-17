@@ -1,0 +1,26 @@
+AWSTemplateFormatVersion: 2010-09-09
+Resources:
+  
+  CustomerManagedKey:
+    Type: AWS::KMS::Key
+    # DeletionPolicy: Retain
+    # UpdateReplacePolicy: Retain
+    Properties: 
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: 'Enable IAM User Permissions'
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: 'Grant S3 to use key'
+            Effect: Allow
+            Principal:
+              Service: 's3.amazonaws.com'
+            Action:
+            - 'kms:Decrypt'
+            - 'kms:GenerateDataKey'
+            Resource: '*'
+  

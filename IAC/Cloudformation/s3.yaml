@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  MediaBucketPrefix:
+    Type: String
+    Default: test-media-bucket-name
+  WwwBucketPrefix:
+    Type: String
+    Default: test-www-bucket-name
+
+Resources:
+
+  WWWBucket:
+    Type: AWS::S3::Bucket
+    # DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub "${wwwBucketName}"
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls       : true
+        BlockPublicPolicy     : true
+        IgnorePublicAcls      : true
+        RestrictPublicBuckets : true
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: error.html
+      BucketEncryption: 
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: false
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  MediaBucket:
+    Type: AWS::S3::Bucket
+    DependsOn: StandardQueuePolicy
+    # DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub "${MediaBucketName}"
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls       : true
+        BlockPublicPolicy     : true
+        IgnorePublicAcls      : true
+        RestrictPublicBuckets : true
+      BucketEncryption: 
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: false
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      NotificationConfiguration:
+        QueueConfigurations:
+          - Event: s3:ObjectCreated:*
+            Queue: !GetAtt StandardQueue.Arn
+          - Event: s3:ObjectRemoved:*
+            Queue: !GetAtt StandardQueue.Arn
+  
+  # BucketPolicy:
+  #   Type: AWS::S3::BucketPolicy
+  #   Properties:
+  #     PolicyDocument:
+  #       Id: PolicyForCloudFrontPrivateContent
+  #       Version: 2012-10-17
+  #       Statement:
+  #         - Sid: "1"
+  #           Effect: Allow
+  #           Principal: '*'
+  #           Action: 's3:GetObject'
+  #           Resource: !Join 
+  #             - ''
+  #             - - 'arn:aws:s3:::'
+  #               - !Ref S3Bucket
+  #               - /*
+  #     Bucket: !Ref S3Bucket

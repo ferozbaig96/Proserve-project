@@ -1,0 +1,961 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'Project
+
+  '
+Globals:
+  Api:
+    EndpointConfiguration: REGIONAL
+    Cors: '''*'''
+  Function:
+    Runtime: python3.8
+    Timeout: 3
+Parameters:
+  MediaBucketPrefix:
+    Type: String
+    Default: test-media
+    AllowedPattern: ^[a-z0-9-[.]]+$
+  WwwBucketPrefix:
+    Type: String
+    Default: test-www
+    AllowedPattern: ^[a-z0-9-[.]]+$
+  WebsiteDomain:
+    Type: String
+    MinLength: 3
+    MaxLength: 63
+    Default: example.com
+    AllowedPattern: ^([a-z0-9]+(-[a-z0-9]+)*[.])+[a-z]{2,}$
+    Description: Enter your website domain e.g. example.com
+  CognitoDomainPrefix:
+    Type: String
+    MinLength: 3
+    MaxLength: 63
+    AllowedPattern: ^[a-z0-9-]+$
+    Description: Enter a string. Must be alpha numeric 3-63 in length.
+  VpcIdForDb:
+    Type: AWS::EC2::VPC::Id
+  PrivateSubnetsForDb:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Select atleast 2 private subnets
+  DbName:
+    Type: String
+    Default: video_db
+    MinLength: 1
+    MaxLength: 41
+  DbUsername:
+    Type: String
+    Default: master
+    MinLength: 1
+    MaxLength: 41
+  DbPassword:
+    NoEcho: true
+    Type: String
+    MinLength: 1
+    MaxLength: 41
+  DbTableName:
+    Type: String
+    Default: videos
+    MinLength: 1
+    MaxLength: 41
+  DbClusterIdentifier:
+    Type: String
+    Default: video-db-cluster
+    MinLength: 1
+    MaxLength: 63
+    AllowedPattern: ^[a-z](?:(?![-]{2,})[a-z0-9-]){1,62}(?<!-)$
+  ACMCertificateIdentifier:
+    Description: Existing ACM certificate identifier (valid for WebsiteDomain). e.g
+      arn:aws:acm:us-east-1:78443903XXXX:certificate/85936bdd-1860-4704-ab77-63d26f3fdc3d
+    Type: String
+    Default: 85936bdd-1860-4704-ab77-63d26f3fdc3d
+  MinimumProtocolVersion:
+    Description: The minimum version of the SSL protocol that you want CloudFront
+      to use for HTTPS connections with viewers
+    Type: String
+    Default: TLSv1
+    AllowedValues:
+    - TLSv1
+    - TLSv1.2_2018
+    - TLSv1.1_2016
+    - TLSv1_2016
+    - SSLv3
+  SslSupportMethod:
+    Description: Specifies how CloudFront serves HTTPS requests.
+    Type: String
+    Default: sni-only
+    AllowedValues:
+    - sni-only
+    - vip
+Mappings:
+  CachePolicyName2Id:
+    Managed-CachingOptimized:
+      Id: 658327ea-f89d-4fab-a63d-7e88639e58f6
+    Managed-CachingDisabled:
+      Id: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+Resources:
+  LowerCaseLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Returns the lowercase version of a string
+      InlineCode: "import cfnresponse\n\ndef lambda_handler(event, context):\n  output\
+        \ = event['ResourceProperties'].get('InputString', '').lower()\n  responseData\
+        \ = {'OutputString': output}\n  cfnresponse.send(event, context, cfnresponse.SUCCESS,\
+        \ responseData)\n"
+      Handler: index.lambda_handler
+  LowerCaseStackName:
+    Type: Custom::Lowercase
+    Properties:
+      ServiceToken:
+        Fn::GetAtt:
+        - LowerCaseLambda
+        - Arn
+      InputString:
+        Fn::Sub: ${AWS::StackName}
+  InitializeRdsTable:
+    Type: Custom::Lowercase
+    Properties:
+      ServiceToken:
+        Fn::GetAtt:
+        - CreateRdsTableLambda
+        - Arn
+  ApiGatewayApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: dev
+      DefinitionBody:
+        swagger: '2.0'
+        info:
+          title:
+            Fn::Sub: ${AWS::StackName}
+          description: Backend API for ServeProject
+          version: '1'
+        paths:
+          /delete-file:
+            delete:
+              parameters:
+              - in: body
+                name: RequiredObjectKey
+                required: true
+                schema:
+                  $ref: '#/definitions/RequiredObjectKey'
+              security:
+              - CognitoAuth: []
+              x-amazon-apigateway-request-validator: Validate body
+              x-amazon-apigateway-integration:
+                uri:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DeleteS3ObjectLambda.Arn}/invocations
+                httpMethod: POST
+                type: aws_proxy
+          /files:
+            get:
+              parameters:
+              - name: query
+                in: query
+                required: true
+                type: string
+              security:
+              - CognitoAuth: []
+              x-amazon-apigateway-request-validator: Validate query string parameters
+                and headers
+              x-amazon-apigateway-integration:
+                uri:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SearchVideosLambda.Arn}/invocations
+                httpMethod: POST
+                type: aws_proxy
+          /token:
+            get:
+              parameters:
+              - name: code
+                in: query
+                required: true
+                type: string
+              x-amazon-apigateway-request-validator: Validate query string parameters
+                and headers
+              x-amazon-apigateway-integration:
+                uri:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GenerateTokensLambda.Arn}/invocations
+                httpMethod: POST
+                type: aws_proxy
+          /upload-url:
+            get:
+              parameters:
+              - name: filename
+                in: query
+                required: true
+                type: string
+              - name: contentType
+                in: query
+                required: true
+                type: string
+              security:
+              - CognitoAuth: []
+              x-amazon-apigateway-request-validator: Validate query string parameters
+                and headers
+              x-amazon-apigateway-integration:
+                uri:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GenerateS3PresignedUrlLambda.Arn}/invocations
+                httpMethod: POST
+                type: aws_proxy
+          /watch:
+            get:
+              parameters:
+              - name: filename
+                in: query
+                required: true
+                type: string
+              security:
+              - CognitoAuth: []
+              x-amazon-apigateway-request-validator: Validate query string parameters
+                and headers
+              x-amazon-apigateway-integration:
+                uri:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WatchVideoLambda.Arn}/invocations
+                httpMethod: POST
+                type: aws_proxy
+        securityDefinitions:
+          CognitoAuth:
+            type: apiKey
+            name: Authorization
+            in: header
+            x-amazon-apigateway-authtype: cognito_user_pools
+            x-amazon-apigateway-authorizer:
+              providerARNs:
+              - Fn::GetAtt:
+                - UserPool
+                - Arn
+              type: cognito_user_pools
+        definitions:
+          RequiredObjectKey:
+            type: object
+            required:
+            - objectKey
+            properties:
+              objectKey:
+                type: string
+        x-amazon-apigateway-request-validators:
+          Validate body:
+            validateRequestParameters: false
+            validateRequestBody: true
+          Validate query string parameters and headers:
+            validateRequestParameters: true
+            validateRequestBody: false
+  SearchVideosLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Timeout: 10
+      CodeUri: s3://project-code-resources/8bee46a23ae35ea593791a5d28151cca
+      Handler: SearchVideos.lambda_handler
+      Policies:
+      - AWSSecretsManagerGetSecretValuePolicy:
+          SecretArn:
+            Ref: SecretRds
+      - Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - rds-data:ExecuteStatement
+          Resource:
+            Fn::Sub: arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:cluster:${DbCluster}
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /files
+            Method: GET
+            RestApiId:
+              Ref: ApiGatewayApi
+      Environment:
+        Variables:
+          DB_NAME:
+            Fn::Sub: ${DbName}
+          DB_TABLE_NAME:
+            Fn::Sub: ${DbTableName}
+          DB_CLUSTER_ARN:
+            Fn::Sub: arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:cluster:${DbCluster}
+          DB_CREDENTIALS_STORE_ARN:
+            Fn::Sub: ${SecretRds}
+          BUCKET_NAME:
+            Fn::Sub: ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}
+  DeleteS3ObjectLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://project-code-resources/8bee46a23ae35ea593791a5d28151cca
+      Handler: DeleteS3Object.lambda_handler
+      Policies:
+      - AmazonS3FullAccess
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /delete-file
+            Method: DELETE
+            RestApiId:
+              Ref: ApiGatewayApi
+      Environment:
+        Variables:
+          BUCKET_NAME:
+            Fn::Sub: ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}
+  WatchVideoLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://project-code-resources/8bee46a23ae35ea593791a5d28151cca
+      Handler: WatchVideo.lambda_handler
+      Policies:
+      - AmazonS3FullAccess
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /watch
+            Method: GET
+            RestApiId:
+              Ref: ApiGatewayApi
+      Environment:
+        Variables:
+          CNAME:
+            Fn::Sub: ${WebsiteDomain}
+          BUCKET_NAME:
+            Fn::Sub: ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}
+  GenerateS3PresignedUrlLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://project-code-resources/8bee46a23ae35ea593791a5d28151cca
+      Handler: GenerateS3PresignedUrl.lambda_handler
+      Policies:
+      - AmazonS3FullAccess
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /upload-url
+            Method: GET
+            RestApiId:
+              Ref: ApiGatewayApi
+      Environment:
+        Variables:
+          CNAME:
+            Fn::Sub: ${WebsiteDomain}
+          BUCKET_NAME:
+            Fn::Sub: ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}
+  CreateRdsTableLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://project-code-resources/8bee46a23ae35ea593791a5d28151cca
+      Handler: CreateRdsTable.lambda_handler
+      Policies:
+      - AWSSecretsManagerGetSecretValuePolicy:
+          SecretArn:
+            Ref: SecretRds
+      - Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - rds-data:ExecuteStatement
+          Resource:
+            Fn::Sub: arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:cluster:${DbCluster}
+      Environment:
+        Variables:
+          DB_NAME:
+            Fn::Sub: ${DbName}
+          DB_TABLE_NAME:
+            Fn::Sub: ${DbTableName}
+          DB_CLUSTER_ARN:
+            Fn::Sub: arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:cluster:${DbCluster}
+          DB_CREDENTIALS_STORE_ARN:
+            Fn::Sub: ${SecretRds}
+  GenerateTokensLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://project-code-resources/8bee46a23ae35ea593791a5d28151cca
+      Handler: GenerateTokens.lambda_handler
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /token
+            Method: GET
+            RestApiId:
+              Ref: ApiGatewayApi
+      Environment:
+        Variables:
+          BASE_URL:
+            Fn::Sub: https://${WebsiteDomain}
+          CLIENT_ID:
+            Fn::Sub: ${UserPoolClient}
+  SQSHandlerLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://project-code-resources/8bee46a23ae35ea593791a5d28151cca
+      Handler: SQSHandler.lambda_handler
+      Policies:
+      - SQSPollerPolicy:
+          QueueName:
+            Fn::GetAtt:
+            - StandardQueue
+            - QueueName
+      - AWSSecretsManagerGetSecretValuePolicy:
+          SecretArn:
+            Ref: SecretRds
+      - Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - rds-data:ExecuteStatement
+          Resource:
+            Fn::Sub: arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:cluster:${DbCluster}
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue:
+              Fn::GetAtt:
+              - StandardQueue
+              - Arn
+            BatchSize: 10
+            Enabled: true
+      Environment:
+        Variables:
+          DB_NAME:
+            Fn::Sub: ${DbName}
+          DB_TABLE_NAME:
+            Fn::Sub: ${DbTableName}
+          DB_CLUSTER_ARN:
+            Fn::Sub: arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:cluster:${DbCluster}
+          DB_CREDENTIALS_STORE_ARN:
+            Fn::Sub: ${SecretRds}
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName:
+        Fn::Sub: ${AWS::StackName}-UserPool
+      UsernameConfiguration:
+        CaseSensitive: false
+      Schema:
+      - Name: email
+        AttributeDataType: String
+        Mutable: false
+        Required: true
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+        - Name: verified_email
+          Priority: 1
+      AutoVerifiedAttributes:
+      - email
+  UserPoolAdminGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      UserPoolId:
+        Ref: UserPool
+      Description: Admin Group
+      GroupName: admin
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId:
+        Ref: UserPool
+      AllowedOAuthFlowsUserPoolClient: true
+      PreventUserExistenceErrors: ENABLED
+      CallbackURLs:
+      - Fn::Sub: https://${WebsiteDomain}
+      AllowedOAuthFlows:
+      - code
+      AllowedOAuthScopes:
+      - openid
+      SupportedIdentityProviders:
+      - COGNITO
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain:
+        Fn::Sub: ${CognitoDomainPrefix}-${LowerCaseStackName.OutputString}
+      UserPoolId:
+        Ref: UserPool
+  DbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription:
+        Fn::Sub: ${AWS::StackName}
+      VpcId:
+        Ref: VpcIdForDb
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 5432
+        ToPort: 5432
+        CidrIp: '0.0.0.0/0'
+      - IpProtocol: tcp
+        FromPort: 5432
+        ToPort: 5432
+        CidrIpv6: ::/0
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription:
+        Fn::Sub: ${AWS::StackName}
+      SubnetIds:
+        Ref: PrivateSubnetsForDb
+  DbCluster:
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Type: AWS::RDS::DBCluster
+    Properties:
+      MasterUsername:
+        Ref: DbUsername
+      MasterUserPassword:
+        Ref: DbPassword
+      DatabaseName:
+        Ref: DbName
+      DBClusterParameterGroupName: default.aurora-postgresql10
+      Engine: aurora-postgresql
+      EngineMode: serverless
+      ScalingConfiguration:
+        MinCapacity: 2
+        MaxCapacity: 16
+      DBSubnetGroupName:
+        Ref: DBSubnetGroup
+      DBClusterIdentifier:
+        Fn::Sub: ${DbClusterIdentifier}-${LowerCaseStackName.OutputString}
+      EnableHttpEndpoint: true
+      StorageEncrypted: true
+      VpcSecurityGroupIds:
+      - Ref: DbSecurityGroup
+  SecretRds:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: RDS database secret
+      Name:
+        Fn::Sub: ${AWS::StackName}/database
+      SecretString:
+        Fn::Sub: "{\n  \"username\": \"${DbUsername}\",\n  \"password\": \"${DbPassword}\"\
+          ,\n  \"engine\": \"postgres\",\n  \"host\": \"${DbCluster.Endpoint.Address}\"\
+          ,\n  \"port\": ${DbCluster.Endpoint.Port},\n  \"dbClusterIdentifier\": \"\
+          ${DbClusterIdentifier}-${LowerCaseStackName.OutputString}\"\n}\n"
+  SecretRdsResourcePolicy:
+    Type: AWS::SecretsManager::ResourcePolicy
+    Properties:
+      SecretId:
+        Ref: SecretRds
+      ResourcePolicy:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Action: secretsmanager:GetSecretValue
+          Resource: '*'
+          Principal:
+            AWS:
+            - Fn::GetAtt:
+              - SearchVideosLambdaRole
+              - Arn
+            - Fn::GetAtt:
+              - CreateRdsTableLambdaRole
+              - Arn
+            - Fn::GetAtt:
+              - SQSHandlerLambdaRole
+              - Arn
+          Condition:
+            ForAnyValue:StringEquals:
+              secretsmanager:VersionStage: AWSCURRENT
+  StandardQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      ReceiveMessageWaitTimeSeconds: 20
+  StandardQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+      - Ref: StandardQueue
+      PolicyDocument:
+        Statement:
+        - Sid: Allow S3 to send message
+          Action:
+          - SQS:SendMessage
+          Effect: Allow
+          Resource:
+            Fn::Join:
+            - ''
+            - - Fn::Sub: 'arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:'
+              - Fn::GetAtt:
+                - StandardQueue
+                - QueueName
+          Principal:
+            AWS: '*'
+          Condition:
+            StringEquals:
+              aws:SourceAccount:
+                Fn::Sub: ${AWS::AccountId}
+            ArnLike:
+              aws:SourceArn:
+                Fn::Join:
+                - ''
+                - - 'arn:aws:s3:*:*:'
+                  - Fn::Sub: ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}
+  WWWBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Fn::Sub: ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: error.html
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - BucketKeyEnabled: false
+          ServerSideEncryptionByDefault:
+            SSEAlgorithm: AES256
+  MediaBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Fn::Sub: ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - BucketKeyEnabled: false
+          ServerSideEncryptionByDefault:
+            SSEAlgorithm: AES256
+      NotificationConfiguration:
+        QueueConfigurations:
+        - Event: s3:ObjectCreated:*
+          Queue:
+            Fn::GetAtt:
+            - StandardQueue
+            - Arn
+        - Event: s3:ObjectRemoved:*
+          Queue:
+            Fn::GetAtt:
+            - StandardQueue
+            - Arn
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Fn::Sub: ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}
+      PolicyDocument:
+        Id: PolicyForCloudFrontPrivateContent
+        Version: '2012-10-17'
+        Statement:
+        - Sid: '1'
+          Effect: Allow
+          Principal:
+            AWS:
+              Fn::Sub: arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity
+                ${CloudFrontOAI}
+          Action: s3:GetObject
+          Resource:
+            Fn::Join:
+            - ''
+            - - 'arn:aws:s3:::'
+              - Fn::Sub: ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}
+              - /*
+  CloudFrontOAI:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment:
+          Fn::Sub: ${AWS::StackName}
+  AllExceptHostHeaderOriginRequestPolicy:
+    Type: AWS::CloudFront::OriginRequestPolicy
+    Properties:
+      OriginRequestPolicyConfig:
+        Comment: All Except Host Header
+        Name:
+          Fn::Sub: AllExceptHostHeader-${AWS::StackName}
+        HeadersConfig:
+          HeaderBehavior: whitelist
+          Headers:
+          - Accept
+          - Access-Control-Request-Method
+          - Access-Control-Request-Headers
+          - User-Agent
+          - Referer
+          - Accept-Language
+        CookiesConfig:
+          CookieBehavior: all
+        QueryStringsConfig:
+          QueryStringBehavior: all
+  AllQueryStringsOnlyOriginRequestPolicy:
+    Type: AWS::CloudFront::OriginRequestPolicy
+    Properties:
+      OriginRequestPolicyConfig:
+        Comment: All Query Strings Only
+        Name:
+          Fn::Sub: AllQueryStringsOnly-${AWS::StackName}
+        HeadersConfig:
+          HeaderBehavior: none
+        CookiesConfig:
+          CookieBehavior: none
+        QueryStringsConfig:
+          QueryStringBehavior: all
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment:
+          Fn::Sub: CF for ${AWS::StackName}
+        Enabled: true
+        DefaultRootObject: index.html
+        Aliases:
+        - Ref: WebsiteDomain
+        Origins:
+        - DomainName:
+            Fn::Sub: ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+          Id:
+            Fn::Sub: ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+          S3OriginConfig:
+            OriginAccessIdentity: ''
+        - DomainName:
+            Fn::Sub: ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+          Id:
+            Fn::Sub: ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+          S3OriginConfig:
+            OriginAccessIdentity:
+              Fn::Sub: origin-access-identity/cloudfront/${CloudFrontOAI}
+        - DomainName:
+            Fn::Sub: ${CognitoDomainPrefix}-${LowerCaseStackName.OutputString}.auth.${AWS::Region}.amazoncognito.com
+          Id:
+            Fn::Sub: ${CognitoDomainPrefix}-${LowerCaseStackName.OutputString}.auth.${AWS::Region}.amazoncognito.com
+          CustomOriginConfig:
+            OriginProtocolPolicy: https-only
+            OriginSSLProtocols:
+            - TLSv1
+        - DomainName:
+            Fn::Sub: ${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com
+          Id:
+            Fn::Sub: ${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com
+          CustomOriginConfig:
+            OriginProtocolPolicy: https-only
+            OriginSSLProtocols:
+            - TLSv1
+        HttpVersion: http2
+        CacheBehaviors:
+        - PathPattern: /signup
+          TargetOriginId:
+            Fn::Sub: ${CognitoDomainPrefix}-${LowerCaseStackName.OutputString}.auth.${AWS::Region}.amazoncognito.com
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+          - GET
+          - HEAD
+          - DELETE
+          - OPTIONS
+          - PATCH
+          - POST
+          - PUT
+          CachePolicyId:
+            Fn::FindInMap:
+            - CachePolicyName2Id
+            - Managed-CachingDisabled
+            - Id
+          OriginRequestPolicyId:
+            Ref: AllExceptHostHeaderOriginRequestPolicy
+        - PathPattern: /login
+          TargetOriginId:
+            Fn::Sub: ${CognitoDomainPrefix}-${LowerCaseStackName.OutputString}.auth.${AWS::Region}.amazoncognito.com
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+          - GET
+          - HEAD
+          - DELETE
+          - OPTIONS
+          - PATCH
+          - POST
+          - PUT
+          CachePolicyId:
+            Fn::FindInMap:
+            - CachePolicyName2Id
+            - Managed-CachingDisabled
+            - Id
+          OriginRequestPolicyId:
+            Ref: AllExceptHostHeaderOriginRequestPolicy
+        - PathPattern: /oauth2/token
+          TargetOriginId:
+            Fn::Sub: ${CognitoDomainPrefix}-${LowerCaseStackName.OutputString}.auth.${AWS::Region}.amazoncognito.com
+          ViewerProtocolPolicy: https-only
+          AllowedMethods:
+          - GET
+          - HEAD
+          - DELETE
+          - OPTIONS
+          - PATCH
+          - POST
+          - PUT
+          CachePolicyId:
+            Fn::FindInMap:
+            - CachePolicyName2Id
+            - Managed-CachingDisabled
+            - Id
+          OriginRequestPolicyId:
+            Ref: AllExceptHostHeaderOriginRequestPolicy
+        - PathPattern: /forgotPassword
+          TargetOriginId:
+            Fn::Sub: ${CognitoDomainPrefix}-${LowerCaseStackName.OutputString}.auth.${AWS::Region}.amazoncognito.com
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+          - GET
+          - HEAD
+          - DELETE
+          - OPTIONS
+          - PATCH
+          - POST
+          - PUT
+          CachePolicyId:
+            Fn::FindInMap:
+            - CachePolicyName2Id
+            - Managed-CachingDisabled
+            - Id
+          OriginRequestPolicyId:
+            Ref: AllExceptHostHeaderOriginRequestPolicy
+        - PathPattern: /confirm
+          TargetOriginId:
+            Fn::Sub: ${CognitoDomainPrefix}-${LowerCaseStackName.OutputString}.auth.${AWS::Region}.amazoncognito.com
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+          - GET
+          - HEAD
+          - DELETE
+          - OPTIONS
+          - PATCH
+          - POST
+          - PUT
+          CachePolicyId:
+            Fn::FindInMap:
+            - CachePolicyName2Id
+            - Managed-CachingDisabled
+            - Id
+          OriginRequestPolicyId:
+            Ref: AllExceptHostHeaderOriginRequestPolicy
+        - PathPattern: /confirmForgotPassword
+          TargetOriginId:
+            Fn::Sub: ${CognitoDomainPrefix}-${LowerCaseStackName.OutputString}.auth.${AWS::Region}.amazoncognito.com
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+          - GET
+          - HEAD
+          - DELETE
+          - OPTIONS
+          - PATCH
+          - POST
+          - PUT
+          CachePolicyId:
+            Fn::FindInMap:
+            - CachePolicyName2Id
+            - Managed-CachingDisabled
+            - Id
+          OriginRequestPolicyId:
+            Ref: AllExceptHostHeaderOriginRequestPolicy
+        - PathPattern: '*.html'
+          TargetOriginId:
+            Fn::Sub: ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+          - GET
+          - HEAD
+          - DELETE
+          - OPTIONS
+          - PATCH
+          - POST
+          - PUT
+          CachePolicyId:
+            Fn::FindInMap:
+            - CachePolicyName2Id
+            - Managed-CachingDisabled
+            - Id
+        - PathPattern: '*.js'
+          TargetOriginId:
+            Fn::Sub: ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+          - GET
+          - HEAD
+          - DELETE
+          - OPTIONS
+          - PATCH
+          - POST
+          - PUT
+          CachePolicyId:
+            Fn::FindInMap:
+            - CachePolicyName2Id
+            - Managed-CachingDisabled
+            - Id
+        - PathPattern: '*.css'
+          TargetOriginId:
+            Fn::Sub: ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+          - GET
+          - HEAD
+          - DELETE
+          - OPTIONS
+          - PATCH
+          - POST
+          - PUT
+          CachePolicyId:
+            Fn::FindInMap:
+            - CachePolicyName2Id
+            - Managed-CachingDisabled
+            - Id
+        - PathPattern: /dev/*
+          TargetOriginId:
+            Fn::Sub: ${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com
+          ViewerProtocolPolicy: https-only
+          AllowedMethods:
+          - GET
+          - HEAD
+          - DELETE
+          - OPTIONS
+          - PATCH
+          - POST
+          - PUT
+          DefaultTTL: 0
+          MaxTTL: 0
+          MinTTL: 0
+          ForwardedValues:
+            QueryString: true
+            Cookies:
+              Forward: all
+            Headers:
+            - Authorization
+        DefaultCacheBehavior:
+          TargetOriginId:
+            Fn::Sub: ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+          - GET
+          - HEAD
+          - DELETE
+          - OPTIONS
+          - PATCH
+          - POST
+          - PUT
+          CachePolicyId:
+            Fn::FindInMap:
+            - CachePolicyName2Id
+            - Managed-CachingDisabled
+            - Id
+          OriginRequestPolicyId:
+            Ref: AllQueryStringsOnlyOriginRequestPolicy
+        PriceClass: PriceClass_All
+        ViewerCertificate:
+          AcmCertificateArn:
+            Fn::Sub: arn:aws:acm:us-east-1:${AWS::AccountId}:certificate/${ACMCertificateIdentifier}
+          SslSupportMethod:
+            Ref: SslSupportMethod
+          MinimumProtocolVersion:
+            Ref: MinimumProtocolVersion
+        IPV6Enabled: true
+Outputs:
+  CognitoHostedUiURL:
+    Value:
+      Fn::Sub: https://${CognitoDomainPrefix}-${LowerCaseStackName.OutputString}.auth.${AWS::Region}.amazoncognito.com/login?client_id=${UserPoolClient}&response_type=code&scope=openid&redirect_uri=https://${WebsiteDomain}
+  DbEndpointConnect:
+    Value:
+      Fn::Sub: psql -h ${DbCluster.Endpoint.Address} -U ${DbUsername} -d ${DbName}

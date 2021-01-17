@@ -1,0 +1,16 @@
+Other Resources:
+
+> Aurora Serverless via CFN:
+https://stackoverflow.com/questions/51879688/creating-an-aurora-serverless-cluster-from-cloudformation
+https://github.com/cfn-modules/rds-aurora-serverless/blob/master/module.yml
+
+> Automating secret creation in AWS CloudFormation
+https://docs.aws.amazon.com/secretsmanager/latest/userguide/integrating_cloudformation.html
+
+> For S3 -> SQS (+ SQS policy referencing S3)
+https://aws.amazon.com/premiumsupport/knowledge-center/unable-validate-destination-s3/
+
+> CloudFront CFN template
+https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/quickref-cloudfront.html
+https://github.com/awslabs/aws-cloudformation-templates/blob/master/aws/solutions/CloudFrontCustomOriginLambda%40Edge/CloudFront.yaml
+

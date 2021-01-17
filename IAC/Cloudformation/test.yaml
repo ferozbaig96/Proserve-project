@@ -1,0 +1,15 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Resources:
+  AllQueryStringsOnlyOriginRequestPolicy:
+    Type: AWS::CloudFront::OriginRequestPolicy
+    Properties: 
+      OriginRequestPolicyConfig: 
+        Comment: All Query Strings Only
+        Name: !Sub AllQueryStringsOnly-${AWS::StackName}
+        HeadersConfig: 
+          HeaderBehavior: 'none'
+        CookiesConfig:
+          CookieBehavior: 'none'
+        QueryStringsConfig: 
+          QueryStringBehavior: 'all'

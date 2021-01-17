@@ -1,0 +1,191 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >
+  Cloudfront Distribution pointing 
+    1. S3 bucket (non website configured) - media bucket
+    2. Custom origin
+      - www.example.com
+      - www.example.com (forwarding Authorization header)
+
+Parameters:
+  # S3 bucket must pre-exist
+  MediaBucketName:
+    Description: Existing S3 bucket name (not website configured)
+    Type: String
+    Default: vies
+  CustomOriginDomain:
+    Description: Custom Origin Domain
+    Type: String
+    Default: www.example.com
+  # ACM Certificate must pre-exist
+  ACMCertificateIdentifier:
+    Description: Existing ACM certificate identifier (valid for WebsiteDomain). e.g arn:aws:acm:us-east-1:78443903XXXX:certificate/85936bdd-1860-4704-ab77-63d26f3fdc3d
+    Type: String
+    Default: 85936bdd-1860-4704-ab77-63d26f3fdc3d
+  WebsiteDomain:
+    Description: WebsiteDomain for Cloudfront CNAME Alias
+    Type: String
+    Default: test.baigmohd.myinstance.com
+  MinimumProtocolVersion:
+    Description: The minimum version of the SSL protocol that you want CloudFront to use for HTTPS connections with viewers
+    Type: String
+    Default: TLSv1
+    AllowedValues:
+      - TLSv1
+      - TLSv1.2_2018
+      - TLSv1.1_2016
+      - TLSv1_2016
+      - SSLv3
+  SslSupportMethod:
+    Description: Specifies how CloudFront serves HTTPS requests.
+    Type: String
+    Default: sni-only
+    AllowedValues:
+      - sni-only
+      - vip
+
+Mappings: 
+  CachePolicyName2Id: 
+    Managed-CachingOptimized:
+      Id: 658327ea-f89d-4fab-a63d-7e88639e58f6
+    Managed-CachingDisabled:
+      Id: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+
+Resources:
+  # -- cloudfront distribution
+  CloudFrontOAI:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub ${AWS::StackName}
+
+  AllExceptHostHeaderOriginRequestPolicy:
+    Type: AWS::CloudFront::OriginRequestPolicy
+    Properties: 
+      OriginRequestPolicyConfig: 
+        Comment: All Except Host Header
+        Name: !Sub AllExceptHostHeader-${AWS::StackName}
+        HeadersConfig: 
+          HeaderBehavior: whitelist
+          Headers:
+            - Accept
+            - Access-Control-Request-Method
+            - Access-Control-Request-Headers
+            - User-Agent
+            - Referer
+            - Accept-Language
+        CookiesConfig:
+          CookieBehavior: all
+        QueryStringsConfig: 
+          QueryStringBehavior: all
+
+  AllQueryStringsOnlyOriginRequestPolicy:
+    Type: AWS::CloudFront::OriginRequestPolicy
+    Properties: 
+      OriginRequestPolicyConfig: 
+        Comment: All Query Strings Only
+        Name: !Sub AllQueryStringsOnly-${AWS::StackName}
+        HeadersConfig: 
+          HeaderBehavior: none
+        CookiesConfig:
+          CookieBehavior: none
+        QueryStringsConfig: 
+          QueryStringBehavior: all
+
+  CloudFrontDistribution:
+    Type: 'AWS::CloudFront::Distribution'
+    Properties:
+      DistributionConfig:
+        Comment: !Sub 'CF for ${AWS::StackName}'
+        Enabled: true
+        DefaultRootObject: index.html
+        Aliases:
+          - !Ref 'WebsiteDomain'
+        Origins:
+          - DomainName: !Sub ${MediaBucketName}.s3.amazonaws.com
+            Id: !Sub ${MediaBucketName}.s3.amazonaws.com
+            S3OriginConfig:
+              OriginAccessIdentity: '' # empty OriginAccessIdentity
+              # OriginAccessIdentity: !Sub origin-access-identity/cloudfront/${CloudFrontOAI}
+          - DomainName: !Ref CustomOriginDomain
+            Id: !Ref CustomOriginDomain
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: 
+               - TLSv1 # default is SSLv3
+        HttpVersion: 'http2'
+        CacheBehaviors: # it has ('PathPattern' + DefaultCacheBehavior) keys
+          - PathPattern: /test*
+            TargetOriginId: !Ref CustomOriginDomain
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+              - DELETE
+              - OPTIONS
+              - PATCH
+              - POST
+              - PUT
+            CachePolicyId: !FindInMap [CachePolicyName2Id, Managed-CachingDisabled, Id]
+            OriginRequestPolicyId: !Ref AllExceptHostHeaderOriginRequestPolicy
+            # DefaultTTL: 0
+            # MaxTTL: 0
+            # MinTTL: 0
+            # ForwardedValues:
+            #   QueryString: !Ref 'QueryString'
+            #   Cookies:
+            #     Forward: !Ref 'ForwardCookies'
+          - PathPattern: /dev*
+            TargetOriginId: !Ref CustomOriginDomain
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+              - DELETE
+              - OPTIONS
+              - PATCH
+              - POST
+              - PUT
+            # CachePolicyId: !FindInMap [CachePolicyName2Id, Managed-CachingDisabled, Id]
+            # OriginRequestPolicyId: !Ref AllExceptHostHeaderOriginRequestPolicy
+            ## Forward Authorization header
+            DefaultTTL: 0
+            MaxTTL: 0
+            MinTTL: 0
+            ForwardedValues:
+              QueryString: true
+              Cookies:
+                Forward: all
+              Headers:
+                - Authorization
+        DefaultCacheBehavior:
+          TargetOriginId: !Sub ${MediaBucketName}.s3.amazonaws.com
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - DELETE
+            - OPTIONS
+            - PATCH
+            - POST
+            - PUT
+          CachePolicyId: !FindInMap [CachePolicyName2Id, Managed-CachingDisabled, Id]
+          OriginRequestPolicyId: !Ref AllQueryStringsOnlyOriginRequestPolicy
+          # DefaultTTL: 0
+          # MaxTTL: 0
+          # MinTTL: 0
+          # ForwardedValues:
+          #   QueryString: !Ref 'QueryString'
+          #   Cookies:
+          #     Forward: !Ref 'ForwardCookies'
+        PriceClass: PriceClass_All
+        ViewerCertificate:
+          AcmCertificateArn: !Sub 'arn:aws:acm:us-east-1:${AWS::AccountId}:certificate/${ACMCertificateIdentifier}'
+          SslSupportMethod:  !Ref 'SslSupportMethod'
+          MinimumProtocolVersion: !Ref 'MinimumProtocolVersion'
+        IPV6Enabled: true
+        # Logging:
+        #   Bucket: !Sub '${LoggingBucket}.s3.amazonaws.com'
+
+Outputs:
+  CloudFrontDomain:
+    Value: !Sub https://${CloudFrontDistribution.DomainName}

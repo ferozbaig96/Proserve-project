@@ -1,0 +1,185 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Lambdas
+
+Globals:
+  Function:
+    Runtime: python3.8
+    Timeout: 3
+
+Resources:
+  # -- iam role
+  ## Used by Lambda, and referenced in Secrets Manager Resource Policy (it needs full ARN. Regex not allowed)
+  LambdaRoleToProcessMessage:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                  - secretsmanager:GetSecretValue
+                  - rds-data:ExecuteStatement
+                Resource: '*'
+  # -- lambdas
+  SearchVideosLambda:
+    DependsOn: 
+      - LambdaRoleToProcessMessage
+      - DbCluster
+      - SecretRds
+    Type: AWS::Serverless::Function
+    Properties:
+      Timeout: 10
+      CodeUri: lambdas/
+      Handler: SearchVideos.lambda_handler
+      Role: !GetAtt LambdaRoleToProcessMessage.Arn
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /files
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+      Environment:
+        Variables:
+          DB_NAME: !Sub ${DbName}
+          DB_TABLE_NAME: !Sub ${DbTableName}
+          DB_CLUSTER_ARN: !Sub 'arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:cluster:${DbCluster}'
+          DB_CREDENTIALS_STORE_ARN: !Sub ${SecretRds}
+          BUCKET_NAME: !Sub ${MediaBucketName}
+  DeleteS3ObjectLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/
+      Handler: DeleteS3Object.lambda_handler
+      Policies:
+      - AmazonS3FullAccess
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /delete-file
+            Method: DELETE
+            RestApiId: !Ref ApiGatewayApi
+      Environment:
+        Variables:
+          BUCKET_NAME: !Sub ${MediaBucketName}
+  WatchVideoLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/
+      Handler: WatchVideo.lambda_handler
+      Policies:
+      - AmazonS3FullAccess
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /watch
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+      Environment:
+        Variables:
+          CNAME: !Sub ${WebsiteDomain}
+          BUCKET_NAME: !Sub ${MediaBucketName}
+  GenerateS3PresignedUrlLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/
+      Handler: GenerateS3PresignedUrl.lambda_handler
+      Policies:
+      - AmazonS3FullAccess
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /upload-url
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+      Environment:
+        Variables:
+          CNAME: !Sub ${WebsiteDomain}
+          BUCKET_NAME: !Sub ${MediaBucketName}
+  CreateRdsTableLambda:
+    DependsOn: 
+      - LambdaRoleToProcessMessage
+      - DbCluster
+      - SecretRds
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/
+      Handler: CreateRdsTable.lambda_handler
+      Role: !GetAtt LambdaRoleToProcessMessage.Arn
+      Environment:
+        Variables:
+          DB_NAME: !Sub ${DbName}
+          DB_TABLE_NAME: !Sub ${DbTableName}
+          DB_CLUSTER_ARN: !Sub 'arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:cluster:${DbCluster}'
+          DB_CREDENTIALS_STORE_ARN: !Sub ${SecretRds}
+  GenerateTokensLambda:
+    DependsOn:
+      - UserPoolClient
+      # - TODO CloudFront
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/
+      Handler: GenerateTokens.lambda_handler
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /token
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+      Environment:
+        Variables:
+          BASE_URL: !Sub https://${WebsiteDomain}
+          CLIENT_ID: !Sub ${UserPoolClient} 
+  SQSHandlerLambda:
+    DependsOn: 
+      - LambdaRoleToProcessMessage
+      - StandardQueue
+      - DbCluster
+      - SecretRds
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/
+      Handler: SQSHandler.lambda_handler
+      Role: !GetAtt LambdaRoleToProcessMessage.Arn
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt StandardQueue.Arn
+            BatchSize: 10 # default # Min 1, Max 10000
+            Enabled: false
+      Environment:
+        Variables:
+          DB_NAME: !Sub ${DbName}
+          DB_TABLE_NAME: !Sub ${DbTableName}
+          DB_CLUSTER_ARN: !Sub 'arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:cluster:${DbCluster}'
+          DB_CREDENTIALS_STORE_ARN: !Sub ${SecretRds}
+
+Outputs:
+  # To reference IAM Role ARN created by SAM Lambda automatically
+  RoleCreateByLambda:
+    Value: !GetAtt SearchVideosLambdaRole.Arn

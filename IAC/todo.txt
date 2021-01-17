@@ -1,0 +1,42 @@
+cognito hosted ui URL is exposed on incorrect credentials
+	- should not be a cause of concern
+
+----------------
+NOT DOING NOW
+----------------
+
+change BASE_URL to CloudFront URL && REMOVE WebsiteDomain param
+	- Why?
+
+----
+DONE
+----
+
+lambda
+	- timeout
+
+apigw
+	- correct user pool in authorizer
+
+secrets manager
+	- lambda iam role arn
+
+sqs
+	- lambda triggers (SAM Serverless Function Event)
+
+Is dependency (DependsOn) assumed when passing Ref?
+	- yes, for Ref and GetAtt 
+Ref vs Sub?
+	- Remove DependsOn
+
+Trigger CreateRdsLambda Once
+https://github.com/sophos/cloudformation-random-string
+
+Reference IAM role created automatically by SAM lambda
+	- only SQSHandlerLambda needs all permissions
+	- CreateRdsTableLambda and SearchVideosLambda needs does NOT need sqs+kms permissions
+
+	- update stackoverflow
+
+s3 (kms-sqs-s3, s3)
+	- bucket policy for media bucket (cf)

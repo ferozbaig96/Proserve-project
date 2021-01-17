@@ -1,0 +1,251 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Project
+
+# sam package   --template-file project-template.yaml   --output-template-file package.yaml   --s3-bucket project-code-resources
+# sam deploy    --template-file package.yaml    --stack-name project    --capabilities CAPABILITY_AUTO_EXPAND CAPABILITY_IAM
+
+Globals:
+  Api:
+    EndpointConfiguration: REGIONAL
+    Cors: "'*'"
+  Function:
+    Runtime: python3.8
+    Timeout: 3
+
+Resources:
+  # todo
+  # change lambda function arns
+  # changes under 'CognitoAuth' - providerARNs
+  ApiGatewayApi:
+    DependsOn:
+      - DeleteS3ObjectLambda
+      - SearchVideosLambda
+      - GenerateTokensLambda
+      - GenerateS3PresignedUrlLambda
+      - WatchVideoLambda
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: dev
+      DefinitionBody:
+        swagger: "2.0"
+        info:
+          title: !Sub "${AWS::StackName}"
+          description: "Backend API for ServeProject"
+          version: "1"
+        paths:
+          /delete-file:
+            delete:
+              parameters:
+              - in: "body"
+                name: "RequiredObjectKey"
+                required: true
+                schema:
+                  $ref: "#/definitions/RequiredObjectKey"
+              security:
+              - CognitoAuth: []
+              x-amazon-apigateway-request-validator: "Validate body"
+              x-amazon-apigateway-integration:
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DeleteS3ObjectLambda.Arn}/invocations"
+                httpMethod: "POST"
+                type: "aws_proxy"
+          /files:
+            get:
+              parameters:
+              - name: "query"
+                in: "query"
+                required: true
+                type: "string"
+              security:
+              - CognitoAuth: []
+              x-amazon-apigateway-request-validator: "Validate query string parameters and\
+                \ headers"
+              x-amazon-apigateway-integration:
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SearchVideosLambda.Arn}/invocations"
+                httpMethod: "POST"
+                type: "aws_proxy"
+          /token:
+            get:
+              parameters:
+              - name: "code"
+                in: "query"
+                required: true
+                type: "string"
+              x-amazon-apigateway-request-validator: "Validate query string parameters and\
+                \ headers"
+              x-amazon-apigateway-integration:
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GenerateTokensLambda.Arn}/invocations"
+                httpMethod: "POST"
+                type: "aws_proxy"
+          /upload-url:
+            get:
+              parameters:
+              - name: "filename"
+                in: "query"
+                required: true
+                type: "string"
+              - name: "contentType"
+                in: "query"
+                required: true
+                type: "string"
+              security:
+              - CognitoAuth: []
+              x-amazon-apigateway-request-validator: "Validate query string parameters and\
+                \ headers"
+              x-amazon-apigateway-integration:
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GenerateS3PresignedUrlLambda.Arn}/invocations"
+                httpMethod: "POST"
+                type: "aws_proxy"
+          /watch:
+            get:
+              parameters:
+              - name: "filename"
+                in: "query"
+                required: true
+                type: "string"
+              security:
+              - CognitoAuth: []
+              x-amazon-apigateway-request-validator: "Validate query string parameters and\
+                \ headers"
+              x-amazon-apigateway-integration:
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WatchVideoLambda.Arn}/invocations"
+                httpMethod: "POST"
+                type: "aws_proxy"
+        securityDefinitions:
+          CognitoAuth:
+            type: "apiKey"
+            name: "Authorization"
+            in: "header"
+            x-amazon-apigateway-authtype: "cognito_user_pools"
+            x-amazon-apigateway-authorizer:
+              providerARNs:
+              # todo change!
+              - "arn:aws:cognito-idp:us-east-1:784439035548:userpool/us-east-1_f7H7H5k5X"
+              type: "cognito_user_pools"
+        definitions:
+          RequiredObjectKey:
+            type: "object"
+            required:
+            - "objectKey"
+            properties:
+              objectKey:
+                type: "string"
+        x-amazon-apigateway-request-validators:
+          Validate body:
+            validateRequestParameters: false
+            validateRequestBody: true
+          Validate query string parameters and headers:
+            validateRequestParameters: true
+            validateRequestBody: false
+  # -- lambdas
+  SearchVideosLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Timeout: 10
+      CodeUri: lambdas/
+      Handler: SearchVideos.lambda_handler
+      Policies:
+      - Version: '2012-10-17' 
+        Statement:
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+              - rds-data:ExecuteStatement
+            Resource: '*'
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /files
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+  DeleteS3ObjectLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/
+      Handler: DeleteS3Object.lambda_handler
+      Policies:
+      - AmazonS3FullAccess
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /delete-file
+            Method: delete
+            RestApiId: !Ref ApiGatewayApi
+  WatchVideoLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/
+      Handler: WatchVideo.lambda_handler
+      Policies:
+      - AmazonS3FullAccess
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /watch
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+  GenerateS3PresignedUrlLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/
+      Handler: GenerateS3PresignedUrl.lambda_handler
+      Policies:
+      - AmazonS3FullAccess
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /upload-url
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+  CreateRdsTableLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/
+      Handler: CreateRdsTable.lambda_handler
+      Policies:
+      - Version: '2012-10-17' 
+        Statement:
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+              - rds-data:ExecuteStatement
+            Resource: '*'
+  GenerateTokensLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/
+      Handler: GenerateTokens.lambda_handler
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /token
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+  SQSHandlerLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/
+      Handler: SQSHandler.lambda_handler
+      Policies:
+      - Version: '2012-10-17' 
+        Statement:
+          - Effect: Allow
+            Action:
+              - kms:Decrypt
+              - sqs:ReceiveMessage
+              - sqs:DeleteMessage
+              - sqs:GetQueueAttributes
+              - secretsmanager:GetSecretValue
+              - rds-data:ExecuteStatement
+            Resource: '*'
+
+Outputs:
+  # To reference IAM Role ARN created by SAM Lambda automatically
+  RoleCreateByLambda:
+    Value: !GetAtt SearchVideosLambdaRole.Arn

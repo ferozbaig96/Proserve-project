@@ -1,0 +1,99 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS RDS Aurora Serverless Postgresql cluster (port 5432)'
+
+# For connecting (sudo yum install postgres -y):
+# psql -h <DbEndpoint> -U <username> -d <DbName>
+
+Parameters:
+  VpcIdForDb:
+    Type: AWS::EC2::VPC::Id
+  PrivateSubnetsForDb:
+    Type: List<AWS::EC2::Subnet::Id>
+  DbName:
+    Type: String
+    Default: video_db
+    MinLength: 1
+    MaxLength: 41
+  DbUsername:
+    Type: String
+    Default: master
+    MinLength: 1
+    MaxLength: 41
+  DbPassword:
+    NoEcho: true
+    Type: String
+    MinLength: 1
+    MaxLength: 41
+  DbTableName:
+    Type: String
+    Default: videos
+    MinLength: 1
+    MaxLength: 41
+  DbClusterIdentifier:
+    Type: String
+    Default: video-db-cluster
+    MinLength: 1
+    MaxLength: 63
+    # Constraint for db cluster identifier
+    AllowedPattern: ^[a-z](?:(?![-]{2,})[a-z0-9-]){1,62}(?<!-)$
+
+Resources:
+  DbSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: !Sub ${AWS::StackName}
+      VpcId: !Ref VpcIdForDb
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: '0.0.0.0/0'
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIpv6: '::/0'
+  
+  # DBClusterParameterGroup:
+  #   Type: 'AWS::RDS::DBClusterParameterGroup'
+  #   Properties:
+  #     Description: !Sub ${AWS::StackName}
+  #     Family: aurora-postgresql10
+  #     Parameters:
+  #       # in case any changes have to be made
+  #       client_encoding: UTF8  # default
+
+  DBSubnetGroup:
+      Type: 'AWS::RDS::DBSubnetGroup'
+      Properties:
+        DBSubnetGroupDescription: !Sub ${AWS::StackName}
+        SubnetIds: !Ref PrivateSubnetsForDb
+
+  DbCluster:
+    DeletionPolicy: Snapshot # default
+    UpdateReplacePolicy: Snapshot
+    Type: AWS::RDS::DBCluster
+    Properties:
+      MasterUsername: !Ref DbUsername
+      MasterUserPassword: !Ref DbPassword
+      DatabaseName: !Ref DbName
+      DBClusterParameterGroupName: default.aurora-postgresql10
+      Engine: aurora-postgresql
+      EngineMode: serverless
+      ScalingConfiguration:
+        AutoPause: true
+        MinCapacity: 2
+        MaxCapacity: 16
+        SecondsUntilAutoPause: 300
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      DBClusterIdentifier: !Ref DbClusterIdentifier
+      EnableHttpEndpoint: true
+      StorageEncrypted: true
+      # DeletionProtection: true
+      VpcSecurityGroupIds:
+      - !Ref DbSecurityGroup
+
+Outputs:
+  DbEndpoint:
+    Value: !GetAtt DbCluster.Endpoint.Address
+  DbClusterArn:
+    Value: !Ref DbCluster

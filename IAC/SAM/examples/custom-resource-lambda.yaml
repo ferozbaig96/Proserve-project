@@ -1,0 +1,40 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Custom Resource Lambda to lowercase InputString (StackName in this example)
+
+# For testing - Put Stack name including Upper Letters (eg. SomethingWithUpperLetters)
+
+Parameters:
+  BucketPrefix:
+    Type: String
+    Default: my-random-bucket
+
+Resources:
+  # -- custom resource
+  # Lambda function used by Custom Resource
+  LowerCaseLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Returns the lowercase version of a string
+      Runtime: python3.8
+      Timeout: 3
+      InlineCode: |
+        import cfnresponse
+
+        def lambda_handler(event, context):
+          # print(event)
+          output = event['ResourceProperties'].get('InputString', '').lower()
+          responseData = {'OutputString': output}
+          cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
+      Handler: index.lambda_handler
+  # Custom resource taking ${AWS::StackName} as input and generating its lowercase
+  LowerCaseStackName:
+    Type: Custom::Lowercase
+    Properties:
+      ServiceToken: !GetAtt LowerCaseLambda.Arn
+      InputString: !Sub ${AWS::StackName}
+
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${BucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}

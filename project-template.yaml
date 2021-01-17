@@ -1,0 +1,954 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Project
+
+# sam package   --template-file project-template.yaml   --output-template-file package.yaml   --s3-bucket project-code-resources
+# 
+## ensure unique
+##   - {MediaBucketPrefix}
+##   - {WwwBucketPrefix}
+##   - {WebsiteDomain}
+##   - {CognitoDomainPrefix}
+##
+## ensure correct
+##   - {VpcIdForDb}
+##   - {PrivateSubnetsForDb}
+##
+## ensure exists and is correct
+##   - {DbClusterIdentifier}
+##
+## ensure auth.js and index.js have correct mapping to {WebsiteDomain}
+#
+# sam deploy  \
+# --template-file package.yaml  \
+# --stack-name pro \
+# --capabilities CAPABILITY_AUTO_EXPAND CAPABILITY_IAM \
+# --parameter-overrides \
+# MediaBucketPrefix=test-media \
+# WwwBucketPrefix=test-www \
+# WebsiteDomain=project2.baigmohd.myinstance.com \
+# CognitoDomainPrefix=testing-anksdasnd \
+# VpcIdForDb=vpc-8c995af6 \
+# PrivateSubnetsForDb=subnet-8b0cbed7,subnet-6720602d \
+# DbPassword=masterpassword \
+# DbClusterIdentifier=video-db-cluster \
+# ACMCertificateIdentifier=85936bdd-1860-4704-ab77-63d26f3fdc3d \
+# MinimumProtocolVersion=TLSv1 \
+# SslSupportMethod=sni-only
+
+Globals:
+  Api:
+    EndpointConfiguration: REGIONAL
+    Cors: "'*'"
+  Function:
+    Runtime: python3.8
+    Timeout: 3
+
+Parameters:
+  MediaBucketPrefix:
+    Type: String
+    Default: test-media
+    AllowedPattern: ^[a-z0-9-[.]]+$
+  WwwBucketPrefix:
+    Type: String
+    Default: test-www
+    AllowedPattern: ^[a-z0-9-[.]]+$
+  WebsiteDomain: # instead use CloudFront provided domain 
+    Type: String
+    MinLength: 3
+    MaxLength: 63
+    Default: example.com
+    AllowedPattern: ^([a-z0-9]+(-[a-z0-9]+)*[.])+[a-z]{2,}$
+    Description: Enter your website domain e.g. example.com
+  CognitoDomainPrefix:
+    Type: String
+    MinLength: 3
+    MaxLength: 63
+    AllowedPattern: ^[a-z0-9-]+$
+    Description: Enter a string. Must be alpha numeric 3-63 in length.
+  VpcIdForDb:
+    Type: AWS::EC2::VPC::Id
+  PrivateSubnetsForDb:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Select atleast 2 private subnets
+  DbName:
+    Type: String
+    Default: video_db
+    MinLength: 1
+    MaxLength: 41
+  DbUsername:
+    Type: String
+    Default: master
+    MinLength: 1
+    MaxLength: 41
+  DbPassword:
+    NoEcho: true
+    Type: String
+    MinLength: 1
+    MaxLength: 41
+  DbTableName:
+    Type: String
+    Default: videos
+    MinLength: 1
+    MaxLength: 41
+  DbClusterIdentifier:
+    Type: String
+    Default: video-db-cluster
+    MinLength: 1
+    MaxLength: 63
+    # Constraint for db cluster identifier
+    AllowedPattern: ^[a-z](?:(?![-]{2,})[a-z0-9-]){1,62}(?<!-)$
+  ACMCertificateIdentifier:
+    Description: Existing ACM certificate identifier (valid for WebsiteDomain). e.g arn:aws:acm:us-east-1:78443903XXXX:certificate/85936bdd-1860-4704-ab77-63d26f3fdc3d
+    Type: String
+    Default: 85936bdd-1860-4704-ab77-63d26f3fdc3d
+  MinimumProtocolVersion:
+    Description: The minimum version of the SSL protocol that you want CloudFront to use for HTTPS connections with viewers
+    Type: String
+    Default: TLSv1
+    AllowedValues:
+      - TLSv1
+      - TLSv1.2_2018
+      - TLSv1.1_2016
+      - TLSv1_2016
+      - SSLv3
+  SslSupportMethod:
+    Description: Specifies how CloudFront serves HTTPS requests.
+    Type: String
+    Default: sni-only
+    AllowedValues:
+      - sni-only
+      - vip
+
+Mappings: 
+  CachePolicyName2Id: 
+    Managed-CachingOptimized:
+      Id: 658327ea-f89d-4fab-a63d-7e88639e58f6
+    Managed-CachingDisabled:
+      Id: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+
+Resources:
+  # -- custom resource
+  # Lambda function used by Custom Resource
+  LowerCaseLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Returns the lowercase version of a string
+      InlineCode: |
+        import cfnresponse
+
+        def lambda_handler(event, context):
+          output = event['ResourceProperties'].get('InputString', '').lower()
+          responseData = {'OutputString': output}
+          cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
+      Handler: index.lambda_handler
+  # Custom resource taking ${AWS::StackName} as input and generating its lowercase
+  LowerCaseStackName:
+    Type: Custom::Lowercase
+    Properties:
+      ServiceToken: !GetAtt LowerCaseLambda.Arn
+      InputString: !Sub ${AWS::StackName}
+  # Custom resource to invoke CreateRdsTableLambda to initialize RDS table
+  InitializeRdsTable:
+    Type: Custom::Lowercase
+    Properties:
+      ServiceToken: !GetAtt CreateRdsTableLambda.Arn
+
+  # -- api gw
+  ApiGatewayApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: dev
+      DefinitionBody:
+        swagger: "2.0"
+        info:
+          title: !Sub "${AWS::StackName}"
+          description: "Backend API for ServeProject"
+          version: "1"
+        paths:
+          /delete-file:
+            delete:
+              parameters:
+              - in: "body"
+                name: "RequiredObjectKey"
+                required: true
+                schema:
+                  $ref: "#/definitions/RequiredObjectKey"
+              security:
+              - CognitoAuth: []
+              x-amazon-apigateway-request-validator: "Validate body"
+              x-amazon-apigateway-integration:
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DeleteS3ObjectLambda.Arn}/invocations"
+                httpMethod: "POST"
+                type: "aws_proxy"
+          /files:
+            get:
+              parameters:
+              - name: "query"
+                in: "query"
+                required: true
+                type: "string"
+              security:
+              - CognitoAuth: []
+              x-amazon-apigateway-request-validator: "Validate query string parameters and\
+                \ headers"
+              x-amazon-apigateway-integration:
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SearchVideosLambda.Arn}/invocations"
+                httpMethod: "POST"
+                type: "aws_proxy"
+          /token:
+            get:
+              parameters:
+              - name: "code"
+                in: "query"
+                required: true
+                type: "string"
+              x-amazon-apigateway-request-validator: "Validate query string parameters and\
+                \ headers"
+              x-amazon-apigateway-integration:
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GenerateTokensLambda.Arn}/invocations"
+                httpMethod: "POST"
+                type: "aws_proxy"
+          /upload-url:
+            get:
+              parameters:
+              - name: "filename"
+                in: "query"
+                required: true
+                type: "string"
+              - name: "contentType"
+                in: "query"
+                required: true
+                type: "string"
+              security:
+              - CognitoAuth: []
+              x-amazon-apigateway-request-validator: "Validate query string parameters and\
+                \ headers"
+              x-amazon-apigateway-integration:
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GenerateS3PresignedUrlLambda.Arn}/invocations"
+                httpMethod: "POST"
+                type: "aws_proxy"
+          /watch:
+            get:
+              parameters:
+              - name: "filename"
+                in: "query"
+                required: true
+                type: "string"
+              security:
+              - CognitoAuth: []
+              x-amazon-apigateway-request-validator: "Validate query string parameters and\
+                \ headers"
+              x-amazon-apigateway-integration:
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WatchVideoLambda.Arn}/invocations"
+                httpMethod: "POST"
+                type: "aws_proxy"
+        securityDefinitions:
+          CognitoAuth:
+            type: "apiKey"
+            name: "Authorization"
+            in: "header"
+            x-amazon-apigateway-authtype: "cognito_user_pools"
+            x-amazon-apigateway-authorizer:
+              providerARNs:
+              - !GetAtt UserPool.Arn
+              type: "cognito_user_pools"
+        definitions:
+          RequiredObjectKey:
+            type: "object"
+            required:
+            - "objectKey"
+            properties:
+              objectKey:
+                type: "string"
+        x-amazon-apigateway-request-validators:
+          Validate body:
+            validateRequestParameters: false
+            validateRequestBody: true
+          Validate query string parameters and headers:
+            validateRequestParameters: true
+            validateRequestBody: false
+  
+  # -- iam role
+  ## Used by Lambda, and referenced in Secrets Manager Resource Policy (it needs full ARN. Regex not allowed)
+  # LambdaRoleToProcessMessage:
+  #   Type: 'AWS::IAM::Role'
+  #   Properties:
+  #     AssumeRolePolicyDocument:
+  #       Version: 2012-10-17
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service:
+  #             - lambda.amazonaws.com
+  #           Action:
+  #             - 'sts:AssumeRole'
+  #     Path: /
+  #     ManagedPolicyArns:
+  #       - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+  #     Policies:
+  #       - PolicyName: root
+  #         PolicyDocument:
+  #           Version: 2012-10-17
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - kms:Decrypt
+  #                 - sqs:ReceiveMessage
+  #                 - sqs:DeleteMessage
+  #                 - sqs:GetQueueAttributes
+  #                 - secretsmanager:GetSecretValue
+  #                 - rds-data:ExecuteStatement
+  #               Resource: '*'
+  # 
+  # -- lambdas
+  SearchVideosLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Timeout: 10
+      CodeUri: lambdas/
+      Handler: SearchVideos.lambda_handler
+      Policies:
+        - AWSSecretsManagerGetSecretValuePolicy:
+            SecretArn: !Ref SecretRds
+        - Version: '2012-10-17' 
+          Statement:
+            - Effect: Allow
+              Action:
+                - rds-data:ExecuteStatement
+              Resource: !Sub 'arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:cluster:${DbCluster}'
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /files
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+      Environment:
+        Variables:
+          DB_NAME: !Sub ${DbName}
+          DB_TABLE_NAME: !Sub ${DbTableName}
+          DB_CLUSTER_ARN: !Sub 'arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:cluster:${DbCluster}'
+          DB_CREDENTIALS_STORE_ARN: !Sub ${SecretRds}
+          BUCKET_NAME: !Sub ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}
+  DeleteS3ObjectLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/
+      Handler: DeleteS3Object.lambda_handler
+      Policies:
+      - AmazonS3FullAccess
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /delete-file
+            Method: DELETE
+            RestApiId: !Ref ApiGatewayApi
+      Environment:
+        Variables:
+          BUCKET_NAME: !Sub ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}
+  WatchVideoLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/
+      Handler: WatchVideo.lambda_handler
+      Policies:
+      - AmazonS3FullAccess
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /watch
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+      Environment:
+        Variables:
+          CNAME: !Sub ${WebsiteDomain}
+          BUCKET_NAME: !Sub ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}
+  GenerateS3PresignedUrlLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/
+      Handler: GenerateS3PresignedUrl.lambda_handler
+      Policies:
+      - AmazonS3FullAccess
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /upload-url
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+      Environment:
+        Variables:
+          CNAME: !Sub ${WebsiteDomain}
+          BUCKET_NAME: !Sub ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}
+  CreateRdsTableLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/
+      Handler: CreateRdsTable.lambda_handler
+      Policies:
+        - AWSSecretsManagerGetSecretValuePolicy:
+            SecretArn: !Ref SecretRds
+        - Version: '2012-10-17' 
+          Statement:
+            - Effect: Allow
+              Action:
+                - rds-data:ExecuteStatement
+              Resource: !Sub 'arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:cluster:${DbCluster}'
+      Environment:
+        Variables:
+          DB_NAME: !Sub ${DbName}
+          DB_TABLE_NAME: !Sub ${DbTableName}
+          DB_CLUSTER_ARN: !Sub 'arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:cluster:${DbCluster}'
+          DB_CREDENTIALS_STORE_ARN: !Sub ${SecretRds}
+  GenerateTokensLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/
+      Handler: GenerateTokens.lambda_handler
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /token
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+      Environment:
+        Variables:
+          BASE_URL: !Sub https://${WebsiteDomain}
+          CLIENT_ID: !Sub ${UserPoolClient} 
+  SQSHandlerLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/
+      Handler: SQSHandler.lambda_handler
+      Policies:
+        # TODO uncomment
+        # - KMSDecryptPolicy:
+        #     KeyId: !Ref CustomerManagedKey
+        - SQSPollerPolicy:
+            QueueName: !GetAtt StandardQueue.QueueName
+        - AWSSecretsManagerGetSecretValuePolicy:
+            SecretArn: !Ref SecretRds
+        - Version: '2012-10-17' 
+          Statement:
+            - Effect: Allow
+              Action:
+                - rds-data:ExecuteStatement
+              Resource: !Sub 'arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:cluster:${DbCluster}'
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt StandardQueue.Arn
+            BatchSize: 10 # default # Min 1, Max 10000
+            Enabled: true
+      Environment:
+        Variables:
+          DB_NAME: !Sub ${DbName}
+          DB_TABLE_NAME: !Sub ${DbTableName}
+          DB_CLUSTER_ARN: !Sub 'arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:cluster:${DbCluster}'
+          DB_CREDENTIALS_STORE_ARN: !Sub ${SecretRds}
+  
+  # --- Cognito
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub ${AWS::StackName}-UserPool
+      UsernameConfiguration: 
+        CaseSensitive: false
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Mutable: false
+          Required: true
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      # For email verification, otherwise cognito will error out
+      AutoVerifiedAttributes:
+        - email
+  UserPoolAdminGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties: 
+      UserPoolId: !Ref UserPool
+      Description: Admin Group
+      GroupName: admin
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      AllowedOAuthFlowsUserPoolClient: true
+      # ExplicitAuthFlows:
+      #   - ADMIN_NO_SRP_AUTH
+      PreventUserExistenceErrors: ENABLED
+      CallbackURLs:
+        - !Sub https://${WebsiteDomain}
+      AllowedOAuthFlows:
+        - code
+        # - implicit
+      AllowedOAuthScopes:
+        - openid
+      SupportedIdentityProviders:
+        - COGNITO
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub ${CognitoDomainPrefix}-${LowerCaseStackName.OutputString}
+      UserPoolId: !Ref UserPool
+
+  # -- Aurora DB
+  DbSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: !Sub ${AWS::StackName}
+      VpcId: !Ref VpcIdForDb
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: '0.0.0.0/0'
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIpv6: '::/0'
+  DBSubnetGroup:
+      Type: 'AWS::RDS::DBSubnetGroup'
+      Properties:
+        DBSubnetGroupDescription: !Sub ${AWS::StackName}
+        SubnetIds: !Ref PrivateSubnetsForDb
+  DbCluster:
+    DeletionPolicy: Snapshot # default
+    UpdateReplacePolicy: Snapshot
+    Type: AWS::RDS::DBCluster
+    Properties:
+      MasterUsername: !Ref DbUsername
+      MasterUserPassword: !Ref DbPassword
+      DatabaseName: !Ref DbName
+      DBClusterParameterGroupName: default.aurora-postgresql10
+      Engine: aurora-postgresql
+      EngineMode: serverless
+      ScalingConfiguration:
+        MinCapacity: 2
+        MaxCapacity: 16
+        # AutoPause: true
+        # SecondsUntilAutoPause: 300
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      DBClusterIdentifier: !Sub ${DbClusterIdentifier}-${LowerCaseStackName.OutputString}
+      EnableHttpEndpoint: true
+      StorageEncrypted: true
+      # DeletionProtection: true
+      VpcSecurityGroupIds:
+      - !Ref DbSecurityGroup
+
+  # -- Secrets Manager
+  SecretRds:
+    Type: AWS::SecretsManager::Secret
+    Properties: 
+      Description: RDS database secret
+      Name: !Sub ${AWS::StackName}/database
+      # GenerateSecretString:
+      #   IncludeSpace: false
+      ## take value from parameters 
+      # SecretString: >
+      #   {
+      #     "username": "serve_db",
+      #     "password": "serve_db",
+      #     "engine": "postgres",
+      #     "host": "serve-db-cluster.cluster-c7umrsreh09y.us-east-1.rds.amazonaws.com",
+      #     "port": 5432,
+      #     "dbClusterIdentifier": "serve-db-cluster"
+      #   }
+      SecretString: !Sub >
+        {
+          "username": "${DbUsername}",
+          "password": "${DbPassword}",
+          "engine": "postgres",
+          "host": "${DbCluster.Endpoint.Address}",
+          "port": ${DbCluster.Endpoint.Port},
+          "dbClusterIdentifier": "${DbClusterIdentifier}-${LowerCaseStackName.OutputString}"
+        }
+  SecretRdsResourcePolicy:
+      Type: AWS::SecretsManager::ResourcePolicy
+      Properties:
+        SecretId: !Ref SecretRds
+        ResourcePolicy:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action: 'secretsmanager:GetSecretValue'
+            Resource: '*'
+            Principal:
+              ## Principal cannot have regex! It must be complete!
+              AWS:
+                - !GetAtt SearchVideosLambdaRole.Arn
+                - !GetAtt CreateRdsTableLambdaRole.Arn
+                - !GetAtt SQSHandlerLambdaRole.Arn
+                # - !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            "Condition":
+              ForAnyValue:StringEquals:
+                secretsmanager:VersionStage: AWSCURRENT
+
+  # -- kms (CMK)
+  # TODO uncomment completely 
+  ## KMS keys delete after min 7 days, so stack deletion will not cause KMS keys to delete immediately
+  # CustomerManagedKey:
+  #   Type: AWS::KMS::Key
+  #   # DeletionPolicy: Retain
+  #   # UpdateReplacePolicy: Retain
+  #   Properties: 
+  #     KeyPolicy:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         - Sid: 'Enable IAM User Permissions'
+  #           Effect: Allow
+  #           Principal:
+  #             AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+  #           Action: 'kms:*'
+  #           Resource: '*'
+  #         - Sid: 'Grant S3 to use key'
+  #           Effect: Allow
+  #           Principal:
+  #             Service: 's3.amazonaws.com'
+  #           Action:
+  #           - 'kms:Decrypt'
+  #           - 'kms:GenerateDataKey'
+  #           Resource: '*'
+  
+  # -- sqs
+  StandardQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      # TODO uncomment
+      # KmsMasterKeyId: !Ref CustomerManagedKey
+      ReceiveMessageWaitTimeSeconds: 20 # long-polling
+  StandardQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues: 
+        - !Ref StandardQueue
+      PolicyDocument:
+        Statement: 
+          - Sid: 'Allow S3 to send message'
+            Action: 
+              - "SQS:SendMessage"
+            Effect: "Allow"
+            Resource: !Join 
+              - ''
+              - - !Sub 'arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:'
+                - !GetAtt StandardQueue.QueueName
+            Principal:  
+              AWS: '*'
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Sub '${AWS::AccountId}'
+              ArnLike:
+                aws:SourceArn: !Join 
+                  - ''
+                  - - 'arn:aws:s3:*:*:'
+                    # - !Ref MediaBucket # DONT! Will cause circular dependency
+                    - !Sub ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}
+
+  # -- s3
+  WWWBucket:
+    Type: AWS::S3::Bucket
+    # todo uncomment
+    # DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls       : true
+        BlockPublicPolicy     : true
+        IgnorePublicAcls      : true
+        RestrictPublicBuckets : true
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: error.html
+      BucketEncryption: 
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: false
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+  MediaBucket:
+    Type: AWS::S3::Bucket
+    # todo uncomment
+    # DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls       : true
+        BlockPublicPolicy     : true
+        IgnorePublicAcls      : true
+        RestrictPublicBuckets : true
+      BucketEncryption: 
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: false
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      NotificationConfiguration:
+        QueueConfigurations:
+          - Event: s3:ObjectCreated:*
+            Queue: !GetAtt StandardQueue.Arn
+          - Event: s3:ObjectRemoved:*
+            Queue: !GetAtt StandardQueue.Arn
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Sub ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}
+      PolicyDocument:
+        Id: PolicyForCloudFrontPrivateContent
+        Version: '2012-10-17'
+        Statement:
+          - Sid: "1"
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity ${CloudFrontOAI}'
+            Action: 's3:GetObject'
+            Resource: !Join 
+              - ''
+              - - 'arn:aws:s3:::'
+                - !Sub ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}
+                - /*
+  
+  # -- cloudfront distribution
+  CloudFrontOAI:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub ${AWS::StackName}
+  AllExceptHostHeaderOriginRequestPolicy:
+    Type: AWS::CloudFront::OriginRequestPolicy
+    Properties: 
+      OriginRequestPolicyConfig: 
+        Comment: All Except Host Header
+        Name: !Sub AllExceptHostHeader-${AWS::StackName}
+        HeadersConfig: 
+          HeaderBehavior: whitelist
+          Headers:
+            - Accept
+            - Access-Control-Request-Method
+            - Access-Control-Request-Headers
+            - User-Agent
+            - Referer
+            - Accept-Language
+        CookiesConfig:
+          CookieBehavior: all
+        QueryStringsConfig: 
+          QueryStringBehavior: all
+  AllQueryStringsOnlyOriginRequestPolicy:
+    Type: AWS::CloudFront::OriginRequestPolicy
+    Properties: 
+      OriginRequestPolicyConfig: 
+        Comment: All Query Strings Only
+        Name: !Sub AllQueryStringsOnly-${AWS::StackName}
+        HeadersConfig: 
+          HeaderBehavior: none
+        CookiesConfig:
+          CookieBehavior: none
+        QueryStringsConfig: 
+          QueryStringBehavior: all
+  CloudFrontDistribution:
+    Type: 'AWS::CloudFront::Distribution'
+    Properties:
+      DistributionConfig:
+        Comment: !Sub 'CF for ${AWS::StackName}'
+        Enabled: true
+        DefaultRootObject: index.html
+        Aliases:
+          - !Ref 'WebsiteDomain'
+        Origins:
+          # S3-media
+          - DomainName: !Sub ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+            Id: !Sub ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+            S3OriginConfig:
+              OriginAccessIdentity: '' # empty OriginAccessIdentity
+          # S3-www
+          - DomainName: !Sub ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+            Id: !Sub ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub origin-access-identity/cloudfront/${CloudFrontOAI}
+          # Cognito
+          - DomainName: !Sub ${CognitoDomainPrefix}-${LowerCaseStackName.OutputString}.auth.${AWS::Region}.amazoncognito.com
+            Id: !Sub ${CognitoDomainPrefix}-${LowerCaseStackName.OutputString}.auth.${AWS::Region}.amazoncognito.com
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1
+          # API Gateway
+          - DomainName: !Sub ${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com
+            Id: !Sub ${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1
+        HttpVersion: 'http2'
+        CacheBehaviors: # it has ('PathPattern' + DefaultCacheBehavior) keys
+          - PathPattern: /signup
+            TargetOriginId: !Sub ${CognitoDomainPrefix}-${LowerCaseStackName.OutputString}.auth.${AWS::Region}.amazoncognito.com
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+              - DELETE
+              - OPTIONS
+              - PATCH
+              - POST
+              - PUT
+            CachePolicyId: !FindInMap [CachePolicyName2Id, Managed-CachingDisabled, Id]
+            OriginRequestPolicyId: !Ref AllExceptHostHeaderOriginRequestPolicy
+          - PathPattern: /login
+            TargetOriginId: !Sub ${CognitoDomainPrefix}-${LowerCaseStackName.OutputString}.auth.${AWS::Region}.amazoncognito.com
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+              - DELETE
+              - OPTIONS
+              - PATCH
+              - POST
+              - PUT
+            CachePolicyId: !FindInMap [CachePolicyName2Id, Managed-CachingDisabled, Id]
+            OriginRequestPolicyId: !Ref AllExceptHostHeaderOriginRequestPolicy
+          - PathPattern: /oauth2/token
+            TargetOriginId: !Sub ${CognitoDomainPrefix}-${LowerCaseStackName.OutputString}.auth.${AWS::Region}.amazoncognito.com
+            ViewerProtocolPolicy: https-only
+            AllowedMethods:
+              - GET
+              - HEAD
+              - DELETE
+              - OPTIONS
+              - PATCH
+              - POST
+              - PUT
+            CachePolicyId: !FindInMap [CachePolicyName2Id, Managed-CachingDisabled, Id]
+            OriginRequestPolicyId: !Ref AllExceptHostHeaderOriginRequestPolicy
+          - PathPattern: /forgotPassword
+            TargetOriginId: !Sub ${CognitoDomainPrefix}-${LowerCaseStackName.OutputString}.auth.${AWS::Region}.amazoncognito.com
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+              - DELETE
+              - OPTIONS
+              - PATCH
+              - POST
+              - PUT
+            CachePolicyId: !FindInMap [CachePolicyName2Id, Managed-CachingDisabled, Id]
+            OriginRequestPolicyId: !Ref AllExceptHostHeaderOriginRequestPolicy
+          - PathPattern: /confirm
+            TargetOriginId: !Sub ${CognitoDomainPrefix}-${LowerCaseStackName.OutputString}.auth.${AWS::Region}.amazoncognito.com
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+              - DELETE
+              - OPTIONS
+              - PATCH
+              - POST
+              - PUT
+            CachePolicyId: !FindInMap [CachePolicyName2Id, Managed-CachingDisabled, Id]
+            OriginRequestPolicyId: !Ref AllExceptHostHeaderOriginRequestPolicy
+          - PathPattern: /confirmForgotPassword
+            TargetOriginId: !Sub ${CognitoDomainPrefix}-${LowerCaseStackName.OutputString}.auth.${AWS::Region}.amazoncognito.com
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+              - DELETE
+              - OPTIONS
+              - PATCH
+              - POST
+              - PUT
+            CachePolicyId: !FindInMap [CachePolicyName2Id, Managed-CachingDisabled, Id]
+            OriginRequestPolicyId: !Ref AllExceptHostHeaderOriginRequestPolicy
+          - PathPattern: '*.html'
+            TargetOriginId: !Sub ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+              - DELETE
+              - OPTIONS
+              - PATCH
+              - POST
+              - PUT
+            CachePolicyId: !FindInMap [CachePolicyName2Id, Managed-CachingDisabled, Id]
+          - PathPattern: '*.js'
+            TargetOriginId: !Sub ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+              - DELETE
+              - OPTIONS
+              - PATCH
+              - POST
+              - PUT
+            CachePolicyId: !FindInMap [CachePolicyName2Id, Managed-CachingDisabled, Id]
+          - PathPattern: '*.css'
+            TargetOriginId: !Sub ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+              - DELETE
+              - OPTIONS
+              - PATCH
+              - POST
+              - PUT
+            CachePolicyId: !FindInMap [CachePolicyName2Id, Managed-CachingDisabled, Id]
+          - PathPattern: '/dev/*'
+            TargetOriginId: !Sub ${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com
+            ViewerProtocolPolicy: https-only
+            AllowedMethods:
+              - GET
+              - HEAD
+              - DELETE
+              - OPTIONS
+              - PATCH
+              - POST
+              - PUT
+            ## Forward Authorization header
+            DefaultTTL: 0
+            MaxTTL: 0
+            MinTTL: 0
+            ForwardedValues:
+              QueryString: true
+              Cookies:
+                Forward: all
+              Headers:
+                - Authorization
+        DefaultCacheBehavior:
+          TargetOriginId: !Sub ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - DELETE
+            - OPTIONS
+            - PATCH
+            - POST
+            - PUT
+          CachePolicyId: !FindInMap [CachePolicyName2Id, Managed-CachingDisabled, Id]
+          OriginRequestPolicyId: !Ref AllQueryStringsOnlyOriginRequestPolicy
+        PriceClass: PriceClass_All
+        ViewerCertificate:
+          AcmCertificateArn: !Sub 'arn:aws:acm:us-east-1:${AWS::AccountId}:certificate/${ACMCertificateIdentifier}'
+          SslSupportMethod:  !Ref 'SslSupportMethod'
+          MinimumProtocolVersion: !Ref 'MinimumProtocolVersion'
+        IPV6Enabled: true
+
+Outputs:
+
+  CognitoHostedUiURL:
+    Value: !Sub https://${CognitoDomainPrefix}-${LowerCaseStackName.OutputString}.auth.${AWS::Region}.amazoncognito.com/login?client_id=${UserPoolClient}&response_type=code&scope=openid&redirect_uri=https://${WebsiteDomain}
+  DbEndpointConnect:
+    # psql -h <endpoint> -U <user> -d <dbname>
+    Value: !Sub 'psql -h ${DbCluster.Endpoint.Address} -U ${DbUsername} -d ${DbName}'

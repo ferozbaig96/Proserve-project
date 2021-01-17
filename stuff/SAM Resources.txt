@@ -1,0 +1,12 @@
+SAM Resources:
+
+> Nice README
+https://github.com/aws/serverless-application-model/blob/master/versions/2016-10-31.md
+
+> Policies:
+https://aws.amazon.com/premiumsupport/knowledge-center/lambda-sam-template-permissions/
+https://github.com/awsdocs/aws-sam-developer-guide/blob/master/doc_source/sam-resource-function.md
+> Internal Policies meaning:
+https://github.com/aws/serverless-application-model/blob/develop/tests/translator/input/all_policy_templates.yaml
+https://github.com/aws/serverless-application-model/blob/develop/samtranslator/policy_templates_data/policy_templates.json
+

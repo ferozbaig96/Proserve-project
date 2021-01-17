@@ -1,0 +1,74 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+# sam deploy  --stack-name cognito --template-file cognito.yaml --parameter-overrides WebsiteDomain=project.baigmohd.myinstance.com CognitoDomain=somerandomdomain --capabilities CAPABILITY_AUTO_EXPAND CAPABILITY_IAM
+
+Parameters:
+  WebsiteDomain:
+    Type: String
+    MinLength: 3
+    MaxLength: 63
+    AllowedPattern: ^([a-z0-9]+(-[a-z0-9]+)*[.])+[a-z]{2,}$
+    Description: Enter your website domain e.g. example.com
+
+  CognitoDomain:
+    Type: String
+    MinLength: 3
+    MaxLength: 63
+    Description: Enter a string. Must be alpha numeric 3-63 in length.
+
+Resources:
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub ${AWS::StackName}-UserPool
+      UsernameConfiguration: 
+        CaseSensitive: false
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Mutable: false
+          Required: true
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      # For email verification, otherwise cognito will error out
+      AutoVerifiedAttributes:
+        - email
+
+  UserPoolAdminGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties: 
+      UserPoolId: !Ref UserPool
+      Description: Admin Group
+      GroupName: admin
+
+  # todo
+  # send !Sub ${UserPoolClient} to Lambda via env variable or secrets manager
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      AllowedOAuthFlowsUserPoolClient: true
+      # ExplicitAuthFlows:
+      #   - ADMIN_NO_SRP_AUTH
+      PreventUserExistenceErrors: ENABLED
+      CallbackURLs:
+        - !Sub https://${WebsiteDomain}
+      AllowedOAuthFlows:
+        - code
+        # - implicit
+      AllowedOAuthScopes:
+        - openid
+      SupportedIdentityProviders:
+        - COGNITO
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Ref CognitoDomain
+      UserPoolId: !Ref UserPool
+
+Outputs:
+  CognitoHostedUiURL:
+    Value: !Sub https://${CognitoDomain}.auth.${AWS::Region}.amazoncognito.com/login?client_id=${UserPoolClient}&response_type=code&scope=openid&redirect_uri=https://${WebsiteDomain}

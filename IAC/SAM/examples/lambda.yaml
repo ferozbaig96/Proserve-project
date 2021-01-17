@@ -1,0 +1,36 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Two Lambda Functions
+  
+Globals:
+  Function:
+    Runtime: python3.8
+    ## default is also 3. This is for demonstration purpose only
+    Timeout: 3
+    
+Resources:
+  WatchVideo:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://project-code-resources/lambdas/WatchVideo.zip
+      Handler: WatchVideo.lambda_handler
+      Policies: AWSLambdaExecute
+      ## Override globals
+      # Timeout: 60
+      # Runtime: python3.7
+  SearchVideo:
+    Type: AWS::Serverless::Function
+    Properties:
+      InlineCode: |
+        def handler(event, context):
+            return {'body': 'Hello World!', 'statusCode': 200}
+      Handler: index.lambda_handler
+      Policies: AWSLambdaExecute
+
+Outputs:
+  # To reference IAM Role ARN created by SAM Lambda automatically
+  RoleCreateByWatchVideoLambda:
+    Value: !GetAtt WatchVideo.Arn
+  RoleCreateBySearchVideoLambda:
+    Value: !GetAtt SearchVideo.Arn

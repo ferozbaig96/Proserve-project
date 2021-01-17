@@ -1,0 +1,136 @@
+AWSTemplateFormatVersion: '2010-09-09'
+# Transform: AWS::Serverless-2016-10-31
+
+Parameters:
+  MediaBucketName:
+    Type: String
+    Default: test-media-bucket-name
+  wwwBucketName:
+    Type: String
+    Default: test-www-bucket-name
+
+Resources:
+
+  # CustomerManagedKey:
+  #   Type: AWS::KMS::Key
+  #   # DeletionPolicy: Retain
+  #   # UpdateReplacePolicy: Retain
+  #   Properties: 
+  #     KeyPolicy:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         - Sid: 'Enable IAM User Permissions'
+  #           Effect: Allow
+  #           Principal:
+  #             AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+  #           Action: 'kms:*'
+  #           Resource: '*'
+  #         - Sid: 'Grant S3 to use key'
+  #           Effect: Allow
+  #           Principal:
+  #             Service: 's3.amazonaws.com'
+  #           Action:
+  #           - 'kms:Decrypt'
+  #           - 'kms:GenerateDataKey'
+  #           Resource: '*'
+  
+  StandardQueue:
+    Type: 'AWS::SQS::Queue'
+    # DependsOn: CustomerManagedKey
+    Properties:
+      # KmsMasterKeyId: !Ref CustomerManagedKey
+      ReceiveMessageWaitTimeSeconds: 20
+
+  StandardQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    DependsOn: StandardQueue
+    Properties:
+      Queues: 
+        - !Ref StandardQueue
+      PolicyDocument:
+        Statement: 
+          - Sid: 'Allow S3 to send message'
+            Action: 
+              - "SQS:SendMessage"
+            Effect: "Allow"
+            Resource: !Join 
+              - ''
+              - - !Sub 'arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:'
+                - !GetAtt StandardQueue.QueueName
+            Principal:  
+              AWS: '*'
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Sub '${AWS::AccountId}'
+              ArnLike:
+                aws:SourceArn: !Join 
+                  - ''
+                  - - 'arn:aws:s3:*:*:'
+                    # Circular dependency
+                    # - !Ref MediaBucket
+                    - !Sub '${MediaBucketName}'
+
+  WWWBucket:
+    Type: AWS::S3::Bucket
+    # DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub "${wwwBucketName}"
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls       : true
+        BlockPublicPolicy     : true
+        IgnorePublicAcls      : true
+        RestrictPublicBuckets : true
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: error.html
+      BucketEncryption: 
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: false
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  MediaBucket:
+    Type: AWS::S3::Bucket
+    DependsOn: StandardQueuePolicy
+    # DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub "${MediaBucketName}"
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls       : true
+        BlockPublicPolicy     : true
+        IgnorePublicAcls      : true
+        RestrictPublicBuckets : true
+      BucketEncryption: 
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: false
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      NotificationConfiguration:
+        QueueConfigurations:
+          - Event: s3:ObjectCreated:*
+            Queue: !GetAtt StandardQueue.Arn
+          - Event: s3:ObjectRemoved:*
+            Queue: !GetAtt StandardQueue.Arn
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

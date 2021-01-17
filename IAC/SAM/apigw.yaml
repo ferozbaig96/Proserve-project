@@ -1,0 +1,134 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Simple API Gateway with lambda
+
+Globals:
+  Api:
+    EndpointConfiguration: REGIONAL
+    Cors: "'*'"
+
+Resources:
+  # TODO
+  # change lambda function arns
+  # changes under 'CognitoAuth' - providerARNs
+  ApiGatewayApi:
+    DependsOn:
+      - DeleteS3ObjectLambda
+      - SearchVideosLambda
+      - GenerateTokensLambda
+      - GenerateS3PresignedUrlLambda
+      - WatchVideoLambda
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: dev
+      DefinitionBody:
+        swagger: "2.0"
+        info:
+          title: !Sub "${AWS::StackName}"
+          description: "Backend API for ServeProject"
+          version: "1"
+        paths:
+          /delete-file:
+            delete:
+              parameters:
+              - in: "body"
+                name: "RequiredObjectKey"
+                required: true
+                schema:
+                  $ref: "#/definitions/RequiredObjectKey"
+              security:
+              - CognitoAuth: []
+              x-amazon-apigateway-request-validator: "Validate body"
+              x-amazon-apigateway-integration:
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DeleteS3ObjectLambda.Arn}/invocations"
+                httpMethod: "POST"
+                type: "aws_proxy"
+          /files:
+            get:
+              parameters:
+              - name: "query"
+                in: "query"
+                required: true
+                type: "string"
+              security:
+              - CognitoAuth: []
+              x-amazon-apigateway-request-validator: "Validate query string parameters and\
+                \ headers"
+              x-amazon-apigateway-integration:
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SearchVideosLambda.Arn}/invocations"
+                httpMethod: "POST"
+                type: "aws_proxy"
+          /token:
+            get:
+              parameters:
+              - name: "code"
+                in: "query"
+                required: true
+                type: "string"
+              x-amazon-apigateway-request-validator: "Validate query string parameters and\
+                \ headers"
+              x-amazon-apigateway-integration:
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GenerateTokensLambda.Arn}/invocations"
+                httpMethod: "POST"
+                type: "aws_proxy"
+          /upload-url:
+            get:
+              parameters:
+              - name: "filename"
+                in: "query"
+                required: true
+                type: "string"
+              - name: "contentType"
+                in: "query"
+                required: true
+                type: "string"
+              security:
+              - CognitoAuth: []
+              x-amazon-apigateway-request-validator: "Validate query string parameters and\
+                \ headers"
+              x-amazon-apigateway-integration:
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GenerateS3PresignedUrlLambda.Arn}/invocations"
+                httpMethod: "POST"
+                type: "aws_proxy"
+          /watch:
+            get:
+              parameters:
+              - name: "filename"
+                in: "query"
+                required: true
+                type: "string"
+              security:
+              - CognitoAuth: []
+              x-amazon-apigateway-request-validator: "Validate query string parameters and\
+                \ headers"
+              x-amazon-apigateway-integration:
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WatchVideoLambda.Arn}/invocations"
+                httpMethod: "POST"
+                type: "aws_proxy"
+        securityDefinitions:
+          CognitoAuth:
+            type: "apiKey"
+            name: "Authorization"
+            in: "header"
+            x-amazon-apigateway-authtype: "cognito_user_pools"
+            x-amazon-apigateway-authorizer:
+              providerARNs:
+              - "arn:aws:cognito-idp:us-east-1:784439035548:userpool/us-east-1_f7H7H5k5X"
+              type: "cognito_user_pools"
+        definitions:
+          RequiredObjectKey:
+            type: "object"
+            required:
+            - "objectKey"
+            properties:
+              objectKey:
+                type: "string"
+        x-amazon-apigateway-request-validators:
+          Validate body:
+            validateRequestParameters: false
+            validateRequestBody: true
+          Validate query string parameters and headers:
+            validateRequestParameters: true
+            validateRequestBody: false
+
