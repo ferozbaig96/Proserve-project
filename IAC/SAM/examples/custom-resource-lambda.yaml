@@ -23,7 +23,10 @@ Resources:
 
         def lambda_handler(event, context):
           # print(event)
-          output = event['ResourceProperties'].get('InputString', '').lower()
+          if event['RequestType'] == 'Create'
+            output = event['ResourceProperties'].get('InputString', '').lower()
+          else
+            output = ''
           responseData = {'OutputString': output}
           cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
       Handler: index.lambda_handler
