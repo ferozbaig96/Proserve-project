@@ -20,6 +20,11 @@ Description: >
 ##
 ## ensure auth.js and index.js have correct mapping to {WebsiteDomain}
 #
+# 
+## date; <command>; <date>; say done;
+## e.g. date; sleep 2; say done; date;
+# 
+# 
 # sam deploy  \
 # --template-file package.yaml  \
 # --stack-name pro \
@@ -36,6 +41,7 @@ Description: >
 # ACMCertificateIdentifier=85936bdd-1860-4704-ab77-63d26f3fdc3d \
 # MinimumProtocolVersion=TLSv1 \
 # SslSupportMethod=sni-only
+# 
 
 Globals:
   Api:
@@ -145,13 +151,13 @@ Resources:
       Handler: index.lambda_handler
   # Custom resource taking ${AWS::StackName} as input and generating its lowercase
   LowerCaseStackName:
-    Type: Custom::Lowercase
+    Type: Custom::LowerCaseStackName
     Properties:
       ServiceToken: !GetAtt LowerCaseLambda.Arn
       InputString: !Sub ${AWS::StackName}
   # Custom resource to invoke CreateRdsTableLambda to initialize RDS table
   InitializeRdsTable:
-    Type: Custom::Lowercase
+    Type: Custom::InitializeRdsTable
     Properties:
       ServiceToken: !GetAtt CreateRdsTableLambda.Arn
 
@@ -428,8 +434,8 @@ Resources:
       Handler: SQSHandler.lambda_handler
       Policies:
         # TODO uncomment
-        # - KMSDecryptPolicy:
-        #     KeyId: !Ref CustomerManagedKey
+        - KMSDecryptPolicy:
+            KeyId: !Ref CustomerManagedKey
         - SQSPollerPolicy:
             QueueName: !GetAtt StandardQueue.QueueName
         - AWSSecretsManagerGetSecretValuePolicy:
@@ -536,7 +542,7 @@ Resources:
       ScalingConfiguration:
         MinCapacity: 2
         MaxCapacity: 16
-        # AutoPause: true
+        AutoPause: false
         # SecondsUntilAutoPause: 300
       DBSubnetGroupName: !Ref DBSubnetGroup
       DBClusterIdentifier: !Sub ${DbClusterIdentifier}-${LowerCaseStackName.OutputString}
@@ -597,35 +603,35 @@ Resources:
   # -- kms (CMK)
   # TODO uncomment completely 
   ## KMS keys delete after min 7 days, so stack deletion will not cause KMS keys to delete immediately
-  # CustomerManagedKey:
-  #   Type: AWS::KMS::Key
-  #   # DeletionPolicy: Retain
-  #   # UpdateReplacePolicy: Retain
-  #   Properties: 
-  #     KeyPolicy:
-  #       Version: '2012-10-17'
-  #       Statement:
-  #         - Sid: 'Enable IAM User Permissions'
-  #           Effect: Allow
-  #           Principal:
-  #             AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
-  #           Action: 'kms:*'
-  #           Resource: '*'
-  #         - Sid: 'Grant S3 to use key'
-  #           Effect: Allow
-  #           Principal:
-  #             Service: 's3.amazonaws.com'
-  #           Action:
-  #           - 'kms:Decrypt'
-  #           - 'kms:GenerateDataKey'
-  #           Resource: '*'
+  CustomerManagedKey:
+    Type: AWS::KMS::Key
+    # DeletionPolicy: Retain
+    # UpdateReplacePolicy: Retain
+    Properties: 
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: 'Enable IAM User Permissions'
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: 'Grant S3 to use key'
+            Effect: Allow
+            Principal:
+              Service: 's3.amazonaws.com'
+            Action:
+            - 'kms:Decrypt'
+            - 'kms:GenerateDataKey'
+            Resource: '*'
   
   # -- sqs
   StandardQueue:
     Type: AWS::SQS::Queue
     Properties:
       # TODO uncomment
-      # KmsMasterKeyId: !Ref CustomerManagedKey
+      KmsMasterKeyId: !Ref CustomerManagedKey
       ReceiveMessageWaitTimeSeconds: 20 # long-polling
   StandardQueuePolicy:
     Type: AWS::SQS::QueuePolicy

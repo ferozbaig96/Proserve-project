@@ -103,7 +103,7 @@ Resources:
         \ responseData)\n"
       Handler: index.lambda_handler
   LowerCaseStackName:
-    Type: Custom::Lowercase
+    Type: Custom::LowerCaseStackName
     Properties:
       ServiceToken:
         Fn::GetAtt:
@@ -112,7 +112,7 @@ Resources:
       InputString:
         Fn::Sub: ${AWS::StackName}
   InitializeRdsTable:
-    Type: Custom::Lowercase
+    Type: Custom::InitializeRdsTable
     Properties:
       ServiceToken:
         Fn::GetAtt:
@@ -243,7 +243,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Timeout: 10
-      CodeUri: s3://project-code-resources/8bee46a23ae35ea593791a5d28151cca
+      CodeUri: s3://project-code-resources/829c0aec5a62b9fe8bfdcdf3b2758953
       Handler: SearchVideos.lambda_handler
       Policies:
       - AWSSecretsManagerGetSecretValuePolicy:
@@ -279,7 +279,7 @@ Resources:
   DeleteS3ObjectLambda:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: s3://project-code-resources/8bee46a23ae35ea593791a5d28151cca
+      CodeUri: s3://project-code-resources/829c0aec5a62b9fe8bfdcdf3b2758953
       Handler: DeleteS3Object.lambda_handler
       Policies:
       - AmazonS3FullAccess
@@ -298,7 +298,7 @@ Resources:
   WatchVideoLambda:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: s3://project-code-resources/8bee46a23ae35ea593791a5d28151cca
+      CodeUri: s3://project-code-resources/829c0aec5a62b9fe8bfdcdf3b2758953
       Handler: WatchVideo.lambda_handler
       Policies:
       - AmazonS3FullAccess
@@ -319,7 +319,7 @@ Resources:
   GenerateS3PresignedUrlLambda:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: s3://project-code-resources/8bee46a23ae35ea593791a5d28151cca
+      CodeUri: s3://project-code-resources/829c0aec5a62b9fe8bfdcdf3b2758953
       Handler: GenerateS3PresignedUrl.lambda_handler
       Policies:
       - AmazonS3FullAccess
@@ -340,7 +340,7 @@ Resources:
   CreateRdsTableLambda:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: s3://project-code-resources/8bee46a23ae35ea593791a5d28151cca
+      CodeUri: s3://project-code-resources/829c0aec5a62b9fe8bfdcdf3b2758953
       Handler: CreateRdsTable.lambda_handler
       Policies:
       - AWSSecretsManagerGetSecretValuePolicy:
@@ -366,7 +366,7 @@ Resources:
   GenerateTokensLambda:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: s3://project-code-resources/8bee46a23ae35ea593791a5d28151cca
+      CodeUri: s3://project-code-resources/829c0aec5a62b9fe8bfdcdf3b2758953
       Handler: GenerateTokens.lambda_handler
       Events:
         ApiEvent:
@@ -385,9 +385,12 @@ Resources:
   SQSHandlerLambda:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: s3://project-code-resources/8bee46a23ae35ea593791a5d28151cca
+      CodeUri: s3://project-code-resources/829c0aec5a62b9fe8bfdcdf3b2758953
       Handler: SQSHandler.lambda_handler
       Policies:
+      - KMSDecryptPolicy:
+          KeyId:
+            Ref: CustomerManagedKey
       - SQSPollerPolicy:
           QueueName:
             Fn::GetAtt:
@@ -554,9 +557,32 @@ Resources:
           Condition:
             ForAnyValue:StringEquals:
               secretsmanager:VersionStage: AWSCURRENT
+  CustomerManagedKey:
+    Type: AWS::KMS::Key
+    Properties:
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+        - Sid: Enable IAM User Permissions
+          Effect: Allow
+          Principal:
+            AWS:
+              Fn::Sub: arn:aws:iam::${AWS::AccountId}:root
+          Action: kms:*
+          Resource: '*'
+        - Sid: Grant S3 to use key
+          Effect: Allow
+          Principal:
+            Service: s3.amazonaws.com
+          Action:
+          - kms:Decrypt
+          - kms:GenerateDataKey
+          Resource: '*'
   StandardQueue:
     Type: AWS::SQS::Queue
     Properties:
+      KmsMasterKeyId:
+        Ref: CustomerManagedKey
       ReceiveMessageWaitTimeSeconds: 20
   StandardQueuePolicy:
     Type: AWS::SQS::QueuePolicy
