@@ -40,9 +40,9 @@ def lambda_handler(event, context):
     #     }
     bucketName = os.environ['BUCKET_NAME']
     
-    URL_EXPIRATION_SECONDS = 150
+    URL_EXPIRATION_SECONDS = 5
     objectKey = event['queryStringParameters']['filename'].strip()
-    CNAME = 'project.baigmohd.myinstance.com'
+    CNAME = os.environ['CNAME']
     
     url = presign_for_cloudfront(CNAME, bucketName, objectKey, URL_EXPIRATION_SECONDS)
     

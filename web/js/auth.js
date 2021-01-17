@@ -1,5 +1,6 @@
 var redirect_uri = 'https://project.baigmohd.myinstance.com'
-var LOGIN_URI = 'https://project.baigmohd.myinstance.com/login?client_id=r6idl4n64lotv1ijlvpv5sb0f&response_type=code&scope=openid&redirect_uri='+redirect_uri
+var client_id = '2257p56t79hnt3stojgj9muemc'
+var LOGIN_URI = 'https://project.baigmohd.myinstance.com/login?client_id='+client_id+'&response_type=code&scope=openid&redirect_uri='+redirect_uri
 
 var code = (new URLSearchParams(window.location.search)).get('code')
 
