@@ -3,8 +3,11 @@ import boto3
 import time
 import os
 
+region = os.environ['AWS_REGION']
+sess = boto3.session.Session(region_name=region)
+
 # def fetch_ssm_parameter(parameter, isEncrypted):
-#     ssmClient = boto3.client('ssm')
+#     ssmClient = sess.client('ssm')
 #     response = ssmClient.get_parameter(
 #             Name = parameter,
 #             WithDecryption = isEncrypted)
@@ -54,7 +57,7 @@ def search_data(query, limit):
 def lambda_handler(event, context):
     
     global rds_client, database_name, table_name, db_cluster_arn, db_credentials_secrets_store_arn
-    rds_client = boto3.client('rds-data')
+    rds_client = sess.client('rds-data')
     # database_name = fetch_ssm_parameter('ProserveProject_database_name', True)
     # table_name = fetch_ssm_parameter('ProserveProject_table_name', True)
     # db_cluster_arn = fetch_ssm_parameter('ProserveProject_db_cluster_arn', True)

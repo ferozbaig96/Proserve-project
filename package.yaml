@@ -97,10 +97,10 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Description: Returns the lowercase version of a string
-      InlineCode: "import cfnresponse\n\ndef lambda_handler(event, context):\n  output\
-        \ = event['ResourceProperties'].get('InputString', '').lower()\n  responseData\
-        \ = {'OutputString': output}\n  cfnresponse.send(event, context, cfnresponse.SUCCESS,\
-        \ responseData)\n"
+      InlineCode: "import cfnresponse\n\ndef lambda_handler(event, context):\n  if\
+        \ event['RequestType'] == 'Create':\n    output = event['ResourceProperties'].get('InputString',\
+        \ '').lower()\n  else:\n    output = ''\n  responseData = {'OutputString':\
+        \ output}\n  cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)\n"
       Handler: index.lambda_handler
   LowerCaseStackName:
     Type: Custom::LowerCaseStackName
@@ -243,7 +243,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Timeout: 10
-      CodeUri: s3://project-code-resources/829c0aec5a62b9fe8bfdcdf3b2758953
+      CodeUri: s3://z44a/4a069a47801af2604a29ed524e660a7b
       Handler: SearchVideos.lambda_handler
       Policies:
       - AWSSecretsManagerGetSecretValuePolicy:
@@ -279,7 +279,7 @@ Resources:
   DeleteS3ObjectLambda:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: s3://project-code-resources/829c0aec5a62b9fe8bfdcdf3b2758953
+      CodeUri: s3://z44a/4a069a47801af2604a29ed524e660a7b
       Handler: DeleteS3Object.lambda_handler
       Policies:
       - AmazonS3FullAccess
@@ -298,7 +298,7 @@ Resources:
   WatchVideoLambda:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: s3://project-code-resources/829c0aec5a62b9fe8bfdcdf3b2758953
+      CodeUri: s3://z44a/4a069a47801af2604a29ed524e660a7b
       Handler: WatchVideo.lambda_handler
       Policies:
       - AmazonS3FullAccess
@@ -319,7 +319,7 @@ Resources:
   GenerateS3PresignedUrlLambda:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: s3://project-code-resources/829c0aec5a62b9fe8bfdcdf3b2758953
+      CodeUri: s3://z44a/4a069a47801af2604a29ed524e660a7b
       Handler: GenerateS3PresignedUrl.lambda_handler
       Policies:
       - AmazonS3FullAccess
@@ -340,7 +340,7 @@ Resources:
   CreateRdsTableLambda:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: s3://project-code-resources/829c0aec5a62b9fe8bfdcdf3b2758953
+      CodeUri: s3://z44a/4a069a47801af2604a29ed524e660a7b
       Handler: CreateRdsTable.lambda_handler
       Policies:
       - AWSSecretsManagerGetSecretValuePolicy:
@@ -366,7 +366,7 @@ Resources:
   GenerateTokensLambda:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: s3://project-code-resources/829c0aec5a62b9fe8bfdcdf3b2758953
+      CodeUri: s3://z44a/4a069a47801af2604a29ed524e660a7b
       Handler: GenerateTokens.lambda_handler
       Events:
         ApiEvent:
@@ -385,7 +385,7 @@ Resources:
   SQSHandlerLambda:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: s3://project-code-resources/829c0aec5a62b9fe8bfdcdf3b2758953
+      CodeUri: s3://z44a/4a069a47801af2604a29ed524e660a7b
       Handler: SQSHandler.lambda_handler
       Policies:
       - KMSDecryptPolicy:
@@ -513,6 +513,7 @@ Resources:
       ScalingConfiguration:
         MinCapacity: 2
         MaxCapacity: 16
+        AutoPause: false
       DBSubnetGroupName:
         Ref: DBSubnetGroup
       DBClusterIdentifier:

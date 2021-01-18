@@ -3,8 +3,11 @@ import boto3
 from botocore.exceptions import ClientError
 import os
 
+region = os.environ['AWS_REGION']
+sess = boto3.session.Session(region_name=region)
+
 # def get_bucket_name():
-#     ssmClient = boto3.client('ssm')
+#     ssmClient = sess.client('ssm')
 #     response = ssmClient.get_parameter(
 #             Name = 'ProserveProject_S3BucketName',
 #             WithDecryption = True)
@@ -12,7 +15,7 @@ import os
 
 def lambda_handler(event, context):
     
-    s3Client = boto3.client('s3')
+    s3Client = sess.client('s3')
     
     # try:
     #     bucketName = get_bucket_name()

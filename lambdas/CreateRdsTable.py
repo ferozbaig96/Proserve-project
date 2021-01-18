@@ -5,10 +5,13 @@ import hashlib
 import os
 import cfnresponse
 
-rds_client = boto3.client('rds-data')
+region = os.environ['AWS_REGION']
+sess = boto3.session.Session(region_name=region)
+
+rds_client = sess.client('rds-data')
 
 # def fetch_ssm_parameter(parameter, isEncrypted):
-#     ssmClient = boto3.client('ssm')
+#     ssmClient = sess.client('ssm')
 #     response = ssmClient.get_parameter(
 #             Name = parameter,
 #             WithDecryption = isEncrypted)
