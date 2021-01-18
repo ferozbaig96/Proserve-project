@@ -16,9 +16,10 @@ Description: >
 ##   - {PrivateSubnetsForDb}
 ##
 ## ensure exists and is correct
-##   - {DbClusterIdentifier}
+##   - {ACMCertificateIdentifier}
 ##
-## ensure auth.js and index.js have correct mapping to {WebsiteDomain}
+## ensure auth.js and index.js have correct mapping to {WebsiteDomain} and Cognito clientId
+## ensure {WebsiteDomain} points to created CloudFront Domain
 #
 # 
 ## date; <command>; <date>; say done;
