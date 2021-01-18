@@ -50,3 +50,41 @@ Refer ArchProserve.png for diagram
 
 - Ensure `auth.js` and `index.js` have correct mapping to {WebsiteDomain} and Cognito clientId
 - Ensure {WebsiteDomain} points to created CloudFront Domain
+
+
+# How to Run stack
+
+## To create package
+
+	sam package   \
+	--template-file project-template.yaml   \
+	--output-template-file package.yaml   \
+	--s3-bucket <s3-bkt-name>
+
+## To deploy package
+
+	sam deploy  \
+	--template-file package.yaml  \
+	--stack-name pro \
+	--capabilities CAPABILITY_AUTO_EXPAND CAPABILITY_IAM \
+	--parameter-overrides \
+	MediaBucketPrefix=test-media \
+	WwwBucketPrefix=test-www \
+	WebsiteDomain=project.baigmohd.myinstance.com \
+	CognitoDomainPrefix=testing-anksdasnd \
+	VpcIdForDb=vpc-8c995af6 \
+	PrivateSubnetsForDb=subnet-8b0cbed7,subnet-6720602d \
+	DbPassword=somepassword \
+	DbClusterIdentifier=video-db-cluster \
+	ACMCertificateIdentifier=85936bdd-1860-4704-ab77-63d26f3fdc3d \
+	MinimumProtocolVersion=TLSv1 \
+	SslSupportMethod=sni-only
+
+or
+
+	`sam deploy  \
+	--template-file package.yaml  \
+	--stack-name pro \
+	--capabilities CAPABILITY_AUTO_EXPAND CAPABILITY_IAM \
+	--guided`
+
