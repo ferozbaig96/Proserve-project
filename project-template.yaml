@@ -851,32 +851,6 @@ Resources:
               - PUT
             CachePolicyId: !FindInMap [CachePolicyName2Id, Managed-CachingDisabled, Id]
             OriginRequestPolicyId: !Ref AllExceptHostHeaderOriginRequestPolicy
-          - PathPattern: /confirm
-            TargetOriginId: !Sub ${CognitoDomainPrefix}-${LowerCaseStackName.OutputString}.auth.${AWS::Region}.amazoncognito.com
-            ViewerProtocolPolicy: redirect-to-https
-            AllowedMethods:
-              - GET
-              - HEAD
-              - DELETE
-              - OPTIONS
-              - PATCH
-              - POST
-              - PUT
-            CachePolicyId: !FindInMap [CachePolicyName2Id, Managed-CachingDisabled, Id]
-            OriginRequestPolicyId: !Ref AllExceptHostHeaderOriginRequestPolicy
-          - PathPattern: /confirmForgotPassword
-            TargetOriginId: !Sub ${CognitoDomainPrefix}-${LowerCaseStackName.OutputString}.auth.${AWS::Region}.amazoncognito.com
-            ViewerProtocolPolicy: redirect-to-https
-            AllowedMethods:
-              - GET
-              - HEAD
-              - DELETE
-              - OPTIONS
-              - PATCH
-              - POST
-              - PUT
-            CachePolicyId: !FindInMap [CachePolicyName2Id, Managed-CachingDisabled, Id]
-            OriginRequestPolicyId: !Ref AllExceptHostHeaderOriginRequestPolicy
           - PathPattern: '*.html'
             TargetOriginId: !Sub ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.${AWS::Region}.amazonaws.com
             ViewerProtocolPolicy: redirect-to-https
