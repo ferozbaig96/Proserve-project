@@ -735,15 +735,15 @@ Resources:
         - Ref: WebsiteDomain
         Origins:
         - DomainName:
-            Fn::Sub: ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+            Fn::Sub: ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.${AWS::Region}.amazonaws.com
           Id:
-            Fn::Sub: ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+            Fn::Sub: ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.${AWS::Region}.amazonaws.com
           S3OriginConfig:
             OriginAccessIdentity: ''
         - DomainName:
-            Fn::Sub: ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+            Fn::Sub: ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.${AWS::Region}.amazonaws.com
           Id:
-            Fn::Sub: ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+            Fn::Sub: ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.${AWS::Region}.amazonaws.com
           S3OriginConfig:
             OriginAccessIdentity:
               Fn::Sub: origin-access-identity/cloudfront/${CloudFrontOAI}
@@ -881,7 +881,7 @@ Resources:
             Ref: AllExceptHostHeaderOriginRequestPolicy
         - PathPattern: '*.html'
           TargetOriginId:
-            Fn::Sub: ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+            Fn::Sub: ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.${AWS::Region}.amazonaws.com
           ViewerProtocolPolicy: redirect-to-https
           AllowedMethods:
           - GET
@@ -898,7 +898,7 @@ Resources:
             - Id
         - PathPattern: '*.js'
           TargetOriginId:
-            Fn::Sub: ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+            Fn::Sub: ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.${AWS::Region}.amazonaws.com
           ViewerProtocolPolicy: redirect-to-https
           AllowedMethods:
           - GET
@@ -915,7 +915,7 @@ Resources:
             - Id
         - PathPattern: '*.css'
           TargetOriginId:
-            Fn::Sub: ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+            Fn::Sub: ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.${AWS::Region}.amazonaws.com
           ViewerProtocolPolicy: redirect-to-https
           AllowedMethods:
           - GET
@@ -953,7 +953,7 @@ Resources:
             - Authorization
         DefaultCacheBehavior:
           TargetOriginId:
-            Fn::Sub: ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+            Fn::Sub: ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.${AWS::Region}.amazonaws.com
           ViewerProtocolPolicy: redirect-to-https
           AllowedMethods:
           - GET
@@ -980,6 +980,9 @@ Resources:
             Ref: MinimumProtocolVersion
         IPV6Enabled: true
 Outputs:
+  CloudFrontDomainName:
+    Value:
+      Fn::Sub: ${CloudFrontDistribution.DomainName}
   CognitoHostedUiURL:
     Value:
       Fn::Sub: https://${CognitoDomainPrefix}-${LowerCaseStackName.OutputString}.auth.${AWS::Region}.amazoncognito.com/login?client_id=${UserPoolClient}&response_type=code&scope=openid&redirect_uri=https://${WebsiteDomain}

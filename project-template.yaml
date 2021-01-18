@@ -774,13 +774,13 @@ Resources:
           - !Ref 'WebsiteDomain'
         Origins:
           # S3-media
-          - DomainName: !Sub ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
-            Id: !Sub ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+          - DomainName: !Sub ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.${AWS::Region}.amazonaws.com
+            Id: !Sub ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.${AWS::Region}.amazonaws.com
             S3OriginConfig:
               OriginAccessIdentity: '' # empty OriginAccessIdentity
           # S3-www
-          - DomainName: !Sub ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
-            Id: !Sub ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+          - DomainName: !Sub ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.${AWS::Region}.amazonaws.com
+            Id: !Sub ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.${AWS::Region}.amazonaws.com
             S3OriginConfig:
               OriginAccessIdentity: !Sub origin-access-identity/cloudfront/${CloudFrontOAI}
           # Cognito
@@ -878,7 +878,7 @@ Resources:
             CachePolicyId: !FindInMap [CachePolicyName2Id, Managed-CachingDisabled, Id]
             OriginRequestPolicyId: !Ref AllExceptHostHeaderOriginRequestPolicy
           - PathPattern: '*.html'
-            TargetOriginId: !Sub ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+            TargetOriginId: !Sub ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.${AWS::Region}.amazonaws.com
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods:
               - GET
@@ -890,7 +890,7 @@ Resources:
               - PUT
             CachePolicyId: !FindInMap [CachePolicyName2Id, Managed-CachingDisabled, Id]
           - PathPattern: '*.js'
-            TargetOriginId: !Sub ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+            TargetOriginId: !Sub ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.${AWS::Region}.amazonaws.com
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods:
               - GET
@@ -902,7 +902,7 @@ Resources:
               - PUT
             CachePolicyId: !FindInMap [CachePolicyName2Id, Managed-CachingDisabled, Id]
           - PathPattern: '*.css'
-            TargetOriginId: !Sub ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+            TargetOriginId: !Sub ${WwwBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.${AWS::Region}.amazonaws.com
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods:
               - GET
@@ -935,7 +935,7 @@ Resources:
               Headers:
                 - Authorization
         DefaultCacheBehavior:
-          TargetOriginId: !Sub ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.amazonaws.com
+          TargetOriginId: !Sub ${MediaBucketPrefix}-${LowerCaseStackName.OutputString}-${AWS::AccountId}.s3.${AWS::Region}.amazonaws.com
           ViewerProtocolPolicy: redirect-to-https
           AllowedMethods:
             - GET
