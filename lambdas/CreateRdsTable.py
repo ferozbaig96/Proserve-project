@@ -76,7 +76,7 @@ def add_FTS_to_table():
 def lambda_handler(event, context):
 
     if event['RequestType'] != 'Create':
-        cfnresponse.send(event, context, SUCCESS, responseData)
+        cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
         return {
             'statusCode': 204,
         }
