@@ -1,5 +1,16 @@
-cognito hosted ui URL is exposed on incorrect credentials
-	- should not be a cause of concern
+----
+TODO
+----
+
+Custom Lambda based cognito authorizer to
+1. Validate token
+2. Validate user access based on group [admin]
+This will move admin security check from frontend to backend.
+	- https://docs.aws.amazon.com/cognito/latest/developerguide/amazon-cognito-user-pools-using-tokens-verifying-a-jwt.html#amazon-cognito-user-pools-using-tokens-step-1
+	- https://github.com/awslabs/aws-support-tools/tree/master/Cognito/decode-verify-jwt
+	- https://github.com/awslabs/aws-apigateway-lambda-authorizer-blueprints
+	- https://broadwaylab.com/creating-a-cognito-custom-authorizer-lambda-function/
+	- https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-use-lambda-authorizer.html
 
 ----------------
 NOT DOING NOW
@@ -40,3 +51,6 @@ Reference IAM role created automatically by SAM lambda
 
 s3 (kms-sqs-s3, s3)
 	- bucket policy for media bucket (cf)
+
+cognito hosted ui URL is exposed on incorrect credentials & subsequent requests in browser dev tools
+	- should not be a cause of concern
