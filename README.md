@@ -84,7 +84,7 @@ Two kinds of users:
 
 or
 
-	`sam deploy  \
+	sam deploy  \
 	--template-file package.yaml  \
 	--stack-name pro \
 	--capabilities CAPABILITY_AUTO_EXPAND CAPABILITY_IAM \
