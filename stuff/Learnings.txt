@@ -1,0 +1,112 @@
+------
+CHECK
+------
+
+- https://aws.amazon.com/cloudfront/streaming/
+- https://aws.amazon.com/blogs/networking-and-content-delivery/authorizationedge-using-cookies-protect-your-amazon-cloudfront-content-from-being-downloaded-by-unauthenticated-users/
+
+Highly available
+DR plans
+Security 
+Cloudtrail
+Which service and why?
+
+------------
+LEARNINGS
+------------
+
+Rds-data API over DB connector pros and cons
+	Pros:
+		- cleaner way
+			- named parameters
+			- result back in JSON
+		- no DB connection pools
+	Cons:
+		- Performance
+			- slower
+			- more unncessary data returned
+
+	References:
+	- https://aws.amazon.com/about-aws/whats-new/2020/04/amazon-rds-data-api-client-library-for-java-now-generally-available/
+	- https://aws.amazon.com/about-aws/whats-new/2018/11/aurora-serverless-data-api-beta/
+	- https://aws.amazon.com/blogs/aws/new-data-api-for-amazon-aurora-serverless/
+	- https://aws.amazon.com/blogs/database/using-the-data-api-to-interact-with-an-amazon-aurora-serverless-mysql-database/
+	- https://cmani.medium.com/look-ma-no-database-connection-pools-67efb87e108
+
+Postgres vs MySQL
+	- https://developer.okta.com/blog/2019/07/19/mysql-vs-postgres
+	- https://eng.uber.com/postgres-to-mysql-migration/
+	- https://www.xplenty.com/blog/postgresql-vs-mysql-which-one-is-better-for-your-use-case/
+
+Full text search vs LIKE
+	- https://stackoverflow.com/questions/224714/what-is-full-text-search-vs-like
+
+Elasticsearch vs MySQL vs Postgres
+
+Can obfuscate frontend JS code. Why?
+    - Code size will be reduced
+    - Hide the business logic and your code from others
+    - Reverse engineering is highly difficult
+    - In JavaScript, download time will be reduced
+
+    > Google Closure Compiler for changing names (hiding business logic)
+
+CF vs S3 signed url:
+	- https://tutorialsdojo.com/s3-pre-signed-urls-vs-cloudfront-signed-urls-vs-origin-access-identity-oai/
+	- https://advancedweb.hu/how-to-use-s3-signed-urls-with-cloudfront/
+	- https://advancedweb.hu/how-cloudfront-signed-urls-work/
+	- https://advancedweb.hu/the-differences-between-s3-and-cloudfront-signed-urls/
+
+	- https://medium.com/roam-and-wander/using-cloudfront-signed-urls-to-serve-private-s3-content-e7c63ee271db#eb87
+
+
+Cognito
+	- https://aws.amazon.com/getting-started/hands-on/build-serverless-web-app-lambda-apigateway-s3-dynamodb-cognito/module-1/
+	- https://webapp.serverlessworkshops.io/
+	- https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-user-groups.html
+	- https://aws.amazon.com/blogs/mobile/building-fine-grained-authorization-using-amazon-cognito-user-pools-groups/
+
+APIGW
+	- https://stackoverflow.com/questions/49826230/regional-edge-optimized-api-gateway-vs-regional-edge-optimized-custom-domain-nam
+
+
+
+-----
+
+- S3 securely upload data
+	- presign URL
+		- https://aws.amazon.com/blogs/compute/uploading-to-amazon-s3-directly-from-a-web-or-mobile-application/
+	- https://stackoverflow.com/questions/53616848/how-to-enforce-ssl-on-presigned-s3-url
+	- https://aws.amazon.com/blogs/security/how-to-use-bucket-policies-and-apply-defense-in-depth-to-help-secure-your-amazon-s3-data/
+	- https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-post-example.html
+	- Chunking
+		- https://stackoverflow.com/questions/14438187/javascript-filereader-parsing-long-file-in-chunks
+		- https://gist.github.com/alediaferia/cfb3a7503039f9278381
+		- https://gist.github.com/shiawuen/1534477
+		- https://www.google.com/search?client=firefox-b-d&q=how+to+chunk+files+in+javascript
+		- https://deliciousbrains.com/using-javascript-file-api-to-avoid-file-upload-limits/
+	- Uploading (AWS)
+		- https://github.com/aws-samples/amazon-s3-presigned-urls-aws-sam/blob/master/frontend/index.html
+
+- S3 multipart upload
+	- https://www.altostra.com/blog/multipart-uploads-with-s3-presigned-url
+	- Paragon case 6952647201
+
+RDS
+	- Full text search postgres
+	https://www.digitalocean.com/community/tutorials/how-to-use-full-text-search-in-postgresql-on-ubuntu-16-04
+
+	- Execute-statement via boto
+	https://github.com/aws-samples/aws-aurora-serverless-data-api-sam/blob/master/examples/dataapi_examples.py
+	https://github.com/aws-samples/amazon-rds-data-api-demo/tree/master/src/main/python
+
+S3
+	- CORS
+	- Bucket Policy
+		- Read via OAI
+		- Put via presigned url
+	- AbortIncompleteMultipartUpload (later)
+	- Encryption enabled
+
+CF - S3
+	- https://identity-round-robin.awssecworkshops.com/serverless/task1/

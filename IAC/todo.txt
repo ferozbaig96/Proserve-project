@@ -2,15 +2,35 @@
 TODO
 ----
 
+Multipart S3 Object Upload
+
 Custom Lambda based cognito authorizer to
 1. Validate token
-2. Validate user access based on group [admin]
+2. Allow access based on user group [admin]
 This will move admin security check from frontend to backend.
+	
 	- https://docs.aws.amazon.com/cognito/latest/developerguide/amazon-cognito-user-pools-using-tokens-verifying-a-jwt.html#amazon-cognito-user-pools-using-tokens-step-1
 	- https://github.com/awslabs/aws-support-tools/tree/master/Cognito/decode-verify-jwt
 	- https://github.com/awslabs/aws-apigateway-lambda-authorizer-blueprints
 	- https://broadwaylab.com/creating-a-cognito-custom-authorizer-lambda-function/
 	- https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-use-lambda-authorizer.html
+
+Maintain sessions by making use of Cookies
+
+Cognito Logout
+
+------
+CHECK
+------
+
+Highly available
+DR plans
+Security 
+Cloudtrail
+Which service and why?
+
+- https://aws.amazon.com/cloudfront/streaming/
+- https://aws.amazon.com/blogs/networking-and-content-delivery/authorizationedge-using-cookies-protect-your-amazon-cloudfront-content-from-being-downloaded-by-unauthenticated-users/
 
 ----------------
 NOT DOING NOW
