@@ -23,6 +23,24 @@ change BASE_URL to CloudFront URL && REMOVE WebsiteDomain param
 DONE
 ----
 
+Client -> CF -> S3 (bypassing login)
+	- S3 presigned url for watching video + CF domain
+
+Configure sign up email verification via Cognito
+	- Cache issue
+
+encryption on s3
+	- enabled
+
+FTS bug (dot name bug)
+	- fixed
+
+CloudFront health checks on Routet53
+	- You can't set Evaluate Target Health to Yes when the alias target is a CloudFront distribution. 
+
+CloudFront URL for uploading media
+	- done
+
 lambda
 	- timeout
 
