@@ -11,6 +11,9 @@ Two kinds of users:
     - Can read file (READ)
 
 # Architecture
+
+![image](/ArchProserve.png)
+
 - CloudFront (CDN)
 - Cognito (Authentication)
 - S3
@@ -22,7 +25,6 @@ Two kinds of users:
 - Postgres Aurora Serverless (stores metadata of uploaded files)
 - Secrets Manager (stores Aurora Serverless Database credentials secrets)
 
-Refer ArchProserve.png for diagram
 
 ## Before running stack
 
