@@ -88,5 +88,5 @@ or
 	--template-file package.yaml  \
 	--stack-name pro \
 	--capabilities CAPABILITY_AUTO_EXPAND CAPABILITY_IAM \
-	--guided`
+	--guided
 
